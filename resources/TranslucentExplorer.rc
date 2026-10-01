@@ -1,0 +1,160 @@
+// Resource script for TranslucentExplorer.exe. Saved as UTF-8 (no BOM).
+#pragma code_page(65001)
+
+#include <windows.h>
+#include <commctrl.h>
+#include "resource.h"
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+// ---------------------------------------------------------------------------
+// Icons
+// ---------------------------------------------------------------------------
+IDI_APP ICON "app.ico"
+
+// ---------------------------------------------------------------------------
+// Accelerators (UI contract §4). File-operation keys are added by T072. Backspace
+// (Back) is not here: an accelerator would take it from the address bar's edit, so
+// MainWindow handles it in WM_KEYDOWN, which only arrives when no edit has focus.
+// Note: rc.exe omits an empty table from the binary, so LoadAcceleratorsW returns
+// nullptr for one; the message loop (T025) skips TranslateAcceleratorW then.
+// ---------------------------------------------------------------------------
+IDR_ACCEL ACCELERATORS
+BEGIN
+    "C", IDM_OPEN_APPEARANCE, VIRTKEY, ALT, SHIFT
+    VK_LEFT, IDM_BACK, VIRTKEY, ALT
+    VK_RIGHT, IDM_FORWARD, VIRTKEY, ALT
+    VK_UP, IDM_UP, VIRTKEY, ALT
+    VK_F5, IDM_REFRESH, VIRTKEY
+    "L", IDM_FOCUS_ADDRESS, VIRTKEY, CONTROL
+    "D", IDM_FOCUS_ADDRESS, VIRTKEY, ALT
+    VK_F4, IDM_FOCUS_ADDRESS, VIRTKEY
+    "F", IDM_FOCUS_FILTER, VIRTKEY, CONTROL
+END
+
+// ---------------------------------------------------------------------------
+// Appearance popup (UI contract §3). A popup with a thin border and no caption or
+// modal frame. No DS_CONTROL: it strips WS_CAPTION, which includes WS_BORDER, and a
+// top-level popup needs none for IsDialogMessageW to handle Tab and arrow keys.
+// DS_SHELLFONT gives Segoe UI 9. T045 creates it modeless with CreateDialogParamW.
+//
+// Tab order: Mode radios -> 4 x 3 swatch grid (Tab stop on the first swatch; arrow
+// keys move inside the grid, T045) -> Transparent -> Accent color -> Custom... -> Surface opacity ->
+// Tint strength -> Reset. Each trackbar and the preview follow their label, which
+// gives them their accessible name. The swatch captions are their accessible names.
+// ---------------------------------------------------------------------------
+IDD_APPEARANCE DIALOGEX 0, 0, 180, 270
+STYLE DS_SHELLFONT | WS_POPUP | WS_BORDER
+EXSTYLE WS_EX_CONTROLPARENT
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Mode", IDC_MODE_GROUP, 7, 4, 166, 46
+    AUTORADIOBUTTON "Acrylic", IDC_MODE_ACRYLIC, 14, 16, 46, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Mica", IDC_MODE_MICA, 64, 16, 46, 10
+    AUTORADIOBUTTON "Solid", IDC_MODE_SOLID, 114, 16, 46, 10
+    LTEXT           "", IDC_MODE_REASON, 14, 29, 152, 18
+
+    CONTROL "Blue", IDC_SWATCH_0, "Button", BS_OWNERDRAW | WS_GROUP | WS_TABSTOP, 7, 56, 38, 16
+    CONTROL "Navy", IDC_SWATCH_1, "Button", BS_OWNERDRAW, 49, 56, 38, 16
+    CONTROL "Teal", IDC_SWATCH_2, "Button", BS_OWNERDRAW, 91, 56, 38, 16
+    CONTROL "Sea green", IDC_SWATCH_3, "Button", BS_OWNERDRAW, 133, 56, 38, 16
+    CONTROL "Green", IDC_SWATCH_4, "Button", BS_OWNERDRAW, 7, 76, 38, 16
+    CONTROL "Gold", IDC_SWATCH_5, "Button", BS_OWNERDRAW, 49, 76, 38, 16
+    CONTROL "Orange", IDC_SWATCH_6, "Button", BS_OWNERDRAW, 91, 76, 38, 16
+    CONTROL "Red", IDC_SWATCH_7, "Button", BS_OWNERDRAW, 133, 76, 38, 16
+    CONTROL "Rose", IDC_SWATCH_8, "Button", BS_OWNERDRAW, 7, 96, 38, 16
+    CONTROL "Purple", IDC_SWATCH_9, "Button", BS_OWNERDRAW, 49, 96, 38, 16
+    CONTROL "Slate", IDC_SWATCH_10, "Button", BS_OWNERDRAW, 91, 96, 38, 16
+    CONTROL "Graphite", IDC_SWATCH_11, "Button", BS_OWNERDRAW, 133, 96, 38, 16
+    // Clear glass: selects BackdropMode::Transparent (no backdrop material).
+    CONTROL "Transparent", IDC_SWATCH_TRANSPARENT, "Button", BS_OWNERDRAW | WS_GROUP | WS_TABSTOP, 7, 116, 164, 16
+
+    PUSHBUTTON      "Accent color", IDC_SWATCH_ACCENT, 7, 136, 80, 14, WS_GROUP | WS_TABSTOP
+    PUSHBUTTON      "Custom…", IDC_CUSTOM, 93, 136, 80, 14, WS_TABSTOP
+
+    LTEXT           "Surface opacity", IDC_SURFACE_LABEL, 7, 158, 166, 9
+    CONTROL         "", IDC_SURFACE, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 4, 168, 172, 16
+    LTEXT           "Tint strength", IDC_TINT_LABEL, 7, 188, 166, 9
+    CONTROL         "", IDC_TINT, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 4, 198, 172, 16
+    LTEXT           "", IDC_OPACITY_REASON, 7, 216, 166, 9
+
+    LTEXT           "Preview", IDC_PREVIEW_LABEL, 7, 229, 166, 9
+    CONTROL         "", IDC_PREVIEW, "Static", SS_OWNERDRAW, 7, 238, 80, 26
+    PUSHBUTTON      "Reset to defaults", IDC_RESET, 93, 250, 80, 14, WS_TABSTOP
+END
+
+// ---------------------------------------------------------------------------
+// Strings. Format strings use FormatMessageW inserts (%1, %2!u!, ...);
+// "%%" is a literal percent sign.
+// ---------------------------------------------------------------------------
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE                   "Inference Explorer - The PC"
+    IDS_WINDOW_TITLE_FMT            "Inference Explorer - The PC"
+
+    // Appearance popup and status (UI contract §3)
+    IDS_MODE_ACRYLIC                "Acrylic"
+    IDS_MODE_MICA                   "Mica"
+    IDS_MODE_SOLID                  "Solid"
+    IDS_MODE_TRANSPARENT            "Transparent"
+    IDS_REASON_REQUIRES_22621       "Requires Windows 11 build 22621 or later"
+    IDS_REASON_TRANSPARENCY_OFF     "Transparency effects are turned off in Windows settings"
+    IDS_REASON_HIGH_CONTRAST        "High contrast is on"
+    IDS_REASON_SOLID_OPAQUE         "Solid mode is fully opaque"
+    IDS_LABEL_SURFACE_OPACITY       "Surface opacity"
+    IDS_LABEL_TINT_STRENGTH         "Tint strength"
+    IDS_LABEL_ACCENT_COLOR          "Accent color"
+    IDS_LABEL_CUSTOM_COLOR          "Custom…"
+    IDS_LABEL_RESET_DEFAULTS        "Reset to defaults"
+    IDS_LABEL_PREVIEW               "Preview"
+    IDS_STATUS_APPEARANCE_FMT       "%1 · Surface %2!u!%% · Tint %3!u!%%"
+    IDS_STATUS_APPEARANCE_SOLID_FMT "%1"
+    IDS_STATUS_FALLBACK_FMT         "(fallback: %1)"
+    IDS_FALLBACK_HIGH_CONTRAST      "high contrast"
+    IDS_FALLBACK_TRANSPARENCY_OFF   "transparency effects off"
+    IDS_FALLBACK_UNSUPPORTED        "requires Windows 11 build 22621"
+    IDS_FALLBACK_APPLY_FAILED       "backdrop unavailable"
+
+    IDS_COLOR_BLUE                  "Blue"
+    IDS_COLOR_NAVY                  "Navy"
+    IDS_COLOR_TEAL                  "Teal"
+    IDS_COLOR_SEA_GREEN             "Sea green"
+    IDS_COLOR_GREEN                 "Green"
+    IDS_COLOR_GOLD                  "Gold"
+    IDS_COLOR_ORANGE                "Orange"
+    IDS_COLOR_RED                   "Red"
+    IDS_COLOR_ROSE                  "Rose"
+    IDS_COLOR_PURPLE                "Purple"
+    IDS_COLOR_SLATE                 "Slate"
+    IDS_COLOR_GRAPHITE              "Graphite"
+
+    // Status bar and errors (UI contract §6)
+    IDS_STATUS_ITEMS_FMT            "%1!u! items"
+    IDS_STATUS_SELECTED_FMT         "%1!u! selected"
+    IDS_ERR_PATH_NOT_FOUND_FMT      "Windows can't find '%1'. Check the spelling and try again."
+    IDS_ERR_LOCATION_FMT            "Can't open '%1': %2"
+    IDS_ERR_CANT_OPEN_TITLE         "Windows can't open this file"
+    IDS_ERR_CANT_OPEN_BODY_FMT      "No app is associated with '%1'. Choose an app to open it."
+    IDS_CMD_OPEN_WITH               "Open with…"
+    IDS_OP_COPYING_FMT              "Copying %1!u! items…"
+    IDS_OP_MOVING_FMT               "Moving %1!u! items…"
+    IDS_OP_DELETING_FMT             "Deleting %1!u! items…"
+    IDS_OP_RENAMING                 "Renaming…"
+    IDS_OP_COPIED_FMT               "%1!u! items copied"
+    IDS_OP_MOVED_FMT                "%1!u! items moved"
+    IDS_OP_DELETED_FMT              "%1!u! items deleted"
+    IDS_OP_RENAMED                  "Item renamed"
+    IDS_OP_PARTIAL_FMT              "%1!u! of %2!u! items completed"
+    IDS_OP_CANCELLED_FMT            "Operation cancelled — %1!u! items completed before cancellation"
+    IDS_OP_FAILED_TITLE             "Some items couldn't be processed"
+    IDS_OP_FAILED_ITEM_FMT          "%1: %2"
+    IDS_ERR_INVALID_NAME            "A file name can't contain any of the following characters: \\ / : * ? "" < > |"
+    IDS_SETTINGS_RESET              "Appearance settings were reset"
+    IDS_A11Y_PICKER_NAME            "Appearance and color"
+    IDS_A11Y_FILE_LIST              "Items"
+    IDS_A11Y_TOOLBAR                "Navigation"
+    IDS_A11Y_ADDRESS                "Address"
+    IDS_A11Y_NAV_PANE               "Navigation pane"
+    IDS_A11Y_RENAME                 "Name"
+    IDS_FILTER_PLACEHOLDER          "Filter"
+END

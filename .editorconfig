@@ -1,0 +1,22 @@
+root = true
+
+# Defaults for every file.
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Resource scripts use CRLF, the convention of the Visual Studio resource editor.
+[*.rc]
+end_of_line = crlf
+
+# Markdown uses two trailing spaces as a line break, so keep them.
+[*.md]
+trim_trailing_whitespace = false
+
+# JSON and YAML (presets, vcpkg manifest, settings schema) use 2-space indent.
+[*.{json,yml,yaml}]
+indent_size = 2
