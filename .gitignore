@@ -427,3 +427,16 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# C++ / CMake / vcpkg (Translucent Explorer)
+[Bb]uild/
+vcpkg_installed/
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+
+# Editors and OS
+.idea/
+*.swp
+Thumbs.db
+.DS_Store

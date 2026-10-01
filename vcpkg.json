@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "translucent-explorer",
+  "version": "0.1.0",
+  "description": "Native Win32 File Explorer-style application with a translucent, tintable interface.",
+  "builtin-baseline": "07f4812200df3d3c931c0c8a6081d3b21fe2bf9f",
+  "supports": "windows & x64",
+  "dependencies": [
+    "wil",
+    "nlohmann-json",
+    "gtest"
+  ]
+}

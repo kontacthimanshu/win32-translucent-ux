@@ -1,0 +1,20 @@
+---
+# Translucent Explorer C++ style. Microsoft base style (Allman braces, 4-space indent).
+Language: Cpp
+BasedOnStyle: Microsoft
+Standard: c++20
+ColumnLimit: 110
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+PointerAlignment: Left
+ReferenceAlignment: Left
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+NamespaceIndentation: None
+FixNamespaceComments: true
+AlignConsecutiveMacros: Consecutive
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+...
