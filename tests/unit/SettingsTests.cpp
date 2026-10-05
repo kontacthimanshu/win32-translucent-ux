@@ -2,6 +2,7 @@
 // round trip, per-field validation (clamping, rounding, bad values, padding), corrupt and
 // future-version files, and the atomic write through settings.json.tmp.
 
+#include <te/appearance/Palette.h>
 #include <te/settings/SettingsManager.h>
 
 #include <gtest/gtest.h>
@@ -86,9 +87,9 @@ class SettingsTest : public ::testing::Test
 
 void ExpectDefaults(const te::AppearanceSettings& s)
 {
-    EXPECT_EQ(s.backdropMode, te::BackdropMode::Mica);
+    EXPECT_EQ(s.backdropMode, te::BackdropMode::Transparent);
     EXPECT_TRUE(std::holds_alternative<std::monostate>(s.tintColor)) << "tint should follow the accent";
-    EXPECT_NEAR(s.tintOpacity, 0.20, 1e-9);
+    EXPECT_NEAR(s.tintOpacity, te::kTransparentTintFloor, 1e-9);
     EXPECT_NEAR(s.surfaceOpacity, 0.00, 1e-9);
     for (const te::Rgb c : s.customColors)
     {
@@ -215,7 +216,7 @@ TEST_F(SettingsTest, UnknownBackdropModeFallsBackForThatFieldOnly)
 {
     WriteAppearance(R"("backdropMode": "Glass", "surfaceOpacity": 0.3)");
     const te::LoadResult result = Load();
-    EXPECT_EQ(result.settings.backdropMode, te::BackdropMode::Mica);
+    EXPECT_EQ(result.settings.backdropMode, te::BackdropMode::Transparent);
     EXPECT_NEAR(result.settings.surfaceOpacity, 0.30, 1e-9);
 }
 
@@ -320,11 +321,67 @@ TEST_F(SettingsTest, ResetKeepsCustomColors)
     current.customColors[4] = {9, 9, 9};
 
     const te::AppearanceSettings reset = te::SettingsManager::Reset(current);
-    EXPECT_EQ(reset.backdropMode, te::BackdropMode::Mica);
+    EXPECT_EQ(reset.backdropMode, te::BackdropMode::Transparent);
     EXPECT_TRUE(std::holds_alternative<std::monostate>(reset.tintColor));
-    EXPECT_NEAR(reset.tintOpacity, 0.20, 1e-9);
+    EXPECT_NEAR(reset.tintOpacity, te::kTransparentTintFloor, 1e-9);
     EXPECT_NEAR(reset.surfaceOpacity, 0.00, 1e-9);
     EXPECT_EQ(reset.customColors[4], (te::Rgb{9, 9, 9}));
+}
+
+TEST_F(SettingsTest, SlabThicknessRoundTripsAndClamps)
+{
+    te::AppearanceSettings saved;
+    saved.slabThicknessPx = 20;
+    ASSERT_HRESULT_SUCCEEDED(te::SettingsManager(m_dir).Save(saved));
+    EXPECT_EQ(Load().settings.slabThicknessPx, 20);
+
+    WriteAppearance(R"("slabThicknessPx": 500, "tintOpacity": 0.45)");
+    te::LoadResult result = Load();
+    EXPECT_EQ(result.settings.slabThicknessPx, te::kSlabMaxPx);
+    EXPECT_NEAR(result.settings.tintOpacity, 0.45, 1e-9);
+
+    WriteAppearance(R"("slabThicknessPx": "thick")");
+    EXPECT_EQ(Load().settings.slabThicknessPx, te::kSlabDefaultPx);
+}
+
+TEST_F(SettingsTest, ResetKeepsSlabThickness)
+{
+    te::AppearanceSettings current;
+    current.slabThicknessPx = 30;
+    current.slabTop = false;
+    current.slabBottom = false;
+    current.slabRight = false;
+    const te::AppearanceSettings reset = te::SettingsManager::Reset(current);
+    EXPECT_EQ(reset.slabThicknessPx, 30);
+    EXPECT_FALSE(reset.slabTop);
+    EXPECT_TRUE(reset.slabLeft);
+    EXPECT_FALSE(reset.slabBottom);
+    EXPECT_FALSE(reset.slabRight);
+}
+
+TEST_F(SettingsTest, SlabEdgesRoundTripOnTheirOwn)
+{
+    const te::AppearanceSettings defaults;
+    EXPECT_TRUE(defaults.slabTop && defaults.slabLeft && defaults.slabBottom && defaults.slabRight)
+        << "all on by default";
+    te::AppearanceSettings saved;
+    saved.slabTop = false;
+    saved.slabBottom = false;
+    saved.slabRight = false;
+    saved.slabThicknessPx = 24;
+    ASSERT_HRESULT_SUCCEEDED(te::SettingsManager(m_dir).Save(saved));
+    const te::AppearanceSettings loaded = Load().settings;
+    EXPECT_FALSE(loaded.slabTop);
+    EXPECT_TRUE(loaded.slabLeft);
+    EXPECT_FALSE(loaded.slabBottom);
+    EXPECT_FALSE(loaded.slabRight);
+    EXPECT_EQ(loaded.slabThicknessPx, 24);
+
+    WriteAppearance(R"("slabTop": "yes", "slabLeft": false, "slabThicknessPx": 8)");
+    const te::LoadResult result = Load();
+    EXPECT_TRUE(result.settings.slabTop) << "a non-boolean falls back to the default";
+    EXPECT_FALSE(result.settings.slabLeft);
+    EXPECT_EQ(result.settings.slabThicknessPx, 8);
 }
 
 } // namespace

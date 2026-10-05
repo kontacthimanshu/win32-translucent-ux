@@ -106,6 +106,13 @@ class CustomTitleBar
         return m_pickerPressed;
     }
 
+    // The slab button, left of the picker: a small slab of glass drawn in perspective, with
+    // the picker's hover and pressed fills. A click calls `onActivate`; the owner toggles the
+    // slab-thickness popup.
+    void SetSlabCallback(std::function<void()> onActivate);
+    // The slab button rectangle in screen coordinates (the popup's anchor).
+    [[nodiscard]] RECT SlabScreenRect(HWND hwnd) const;
+
     // The icon-and-title text area in DIPs: the caption strip from the left edge to the
     // end of the drag region (not over the picker or the caption buttons).
     [[nodiscard]] D2D1_RECT_F TitleArea() const;
@@ -116,7 +123,11 @@ class CustomTitleBar
     [[nodiscard]] float ToDip(LONG px) const;
     HRESULT EnsureIconBitmap(ID2D1DeviceContext* dc);
     bool HandlePickerMouse(HWND hwnd, UINT msg, LPARAM lParam);
+    // One title-bar button's pointer input (the picker and the slab button share it).
+    bool HandleButtonMouse(HWND hwnd, UINT msg, POINT point, const RECT& rect, bool& hot, bool& pressed,
+                           const std::function<void()>& onActivate);
     void RenderPicker(ID2D1DeviceContext* dc, const EffectiveAppearance& effective);
+    void RenderSlabButton(ID2D1DeviceContext* dc, const EffectiveAppearance& effective);
     void RenderCaptionButtonHalos(ID2D1DeviceContext* dc, const EffectiveAppearance& effective);
     // Where the DWM puts Minimize, Maximize and Close inside layout.captionButtons, found by
     // hit-testing it with DwmDefWindowProc (the reported bounds are wider than the three
@@ -135,6 +146,9 @@ class CustomTitleBar
     bool m_pickerHot = false;                        // pointer over the picker (TrackMouseEvent for leave)
     bool m_pickerPressed = false;                    // left button went down on the picker; mouse captured
     bool m_pickerFocused = false;                    // keyboard focus (T080)
+    std::function<void()> m_onSlab;
+    bool m_slabHot = false;
+    bool m_slabPressed = false;
     wil::com_ptr<IDWriteFactory> m_dwrite;           // the shared factory, for the title layout
     wil::com_ptr<IDWriteTextFormat> m_captionGlyphs; // the caption buttons' icon font
     std::array<RECT, 3> m_buttonRects{};             // Minimize, Maximize, Close; client px

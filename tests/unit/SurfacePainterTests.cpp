@@ -271,7 +271,7 @@ TEST(SurfacePainter, NoDepthInHighContrast)
 }
 
 // The rim: light along the top and left, shade along the bottom and right, nothing in
-// the middle of the window or over the caption buttons.
+// the middle of the window or over the caption buttons while they show the DWM's material.
 TEST(SurfacePainter, FrameBevelIsLitFromTheTopLeft)
 {
     const te::MainLayout layout = TestLayout();
@@ -279,7 +279,7 @@ TEST(SurfacePainter, FrameBevelIsLitFromTheTopLeft)
     ID2D1DeviceContext* dc = target.Begin();
     dc->Clear(D2D1::ColorF(0, 0.0f));
     te::SurfacePainter::PaintFrameBevel(dc, D2D1::SizeF(kWidth, kHeight), layout.captionButtons, true,
-                                        Appearance(te::BackdropMode::Transparent, 0, 0));
+                                        Appearance(te::BackdropMode::Mica, 0, 0));
     target.End();
 
     const Pixel top = target.At(20, 0);
@@ -301,6 +301,21 @@ TEST(SurfacePainter, FrameBevelIsLitFromTheTopLeft)
     EXPECT_EQ(target.At(kWidth / 2, kHeight / 2).a, 0) << "the middle stays clear";
     EXPECT_EQ(target.At(170, 0).a, 0) << "the caption buttons stay the DWM's";
     EXPECT_EQ(target.At(199, 10).a, 0);
+}
+
+// In Transparent the glass covers the caption buttons, so the rim runs across them too:
+// skipping them would leave a darker block in the lit top edge.
+TEST(SurfacePainter, FrameBevelCrossesTheCaptionButtonsInTransparent)
+{
+    const te::MainLayout layout = TestLayout();
+    Offscreen target;
+    ID2D1DeviceContext* dc = target.Begin();
+    dc->Clear(D2D1::ColorF(0, 0.0f));
+    te::SurfacePainter::PaintFrameBevel(dc, D2D1::SizeF(kWidth, kHeight), layout.captionButtons, true,
+                                        Appearance(te::BackdropMode::Transparent, 0, 0));
+    target.End();
+    EXPECT_GT(target.At(170, 0).a, 0) << "the crisp top edge continues over the buttons";
+    EXPECT_GT(target.At(199, 10).a, 0);
 }
 
 TEST(SurfacePainter, FrameBevelFollowsTheRoundedCorners)

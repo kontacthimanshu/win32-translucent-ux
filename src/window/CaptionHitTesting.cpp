@@ -63,7 +63,12 @@ CaptionLayout CaptionHitTester::ComputeLayout(const CaptionMetrics& m)
 {
     const DpiManager scale(m.dpi);
     CaptionLayout layout;
-    layout.captionHeightPx = m.captionPx + m.framePx + m.paddedBorderPx;
+    // The slab's top face is part of the caption strip: it drags the window too.
+    layout.slabTopPx = std::max(0, m.slabTopPx);
+    layout.slabLeftPx = std::max(0, m.slabLeftPx);
+    layout.slabBottomPx = std::max(0, m.slabBottomPx);
+    layout.slabRightPx = std::max(0, m.slabRightPx);
+    layout.captionHeightPx = m.captionPx + m.framePx + m.paddedBorderPx + layout.slabTopPx;
     layout.resizeBandPx = m.maximized ? 0 : m.framePx + m.paddedBorderPx;
     // Maximized: the client area starts at the window's top edge, which is above
     // the screen by the frame thickness; visible content starts below it.
@@ -89,14 +94,27 @@ CaptionLayout CaptionHitTester::ComputeLayout(const CaptionMetrics& m)
         layout.captionButtons.bottom > top ? layout.captionButtons.bottom : LONG{layout.captionHeightPx};
     layout.picker = {left, top, std::max(left, right), bottom};
 
-    // Drag region: the caption strip from the left edge up to the picker.
-    layout.dragRegion = {0, visibleTop, layout.picker.left, layout.captionHeightPx};
+    // The slab button: immediately left of the picker, the same size.
+    const LONG slabRight = layout.picker.left;
+    const LONG slabLeft = std::max<LONG>(0, slabRight - (layout.picker.right - layout.picker.left));
+    layout.slabButton = {slabLeft, top, slabRight, bottom};
+
+    // Drag region: the caption strip below and right of the slab's faces, up to the
+    // slab button (where the icon and title go).
+    layout.dragRegion = {std::min<LONG>(layout.slabLeftPx, layout.slabButton.left),
+                         visibleTop + layout.slabTopPx, layout.slabButton.left, layout.captionHeightPx};
     return layout;
 }
 
 CaptionLayout CaptionHitTester::Compute(HWND hwnd, UINT dpi)
 {
-    return ComputeLayout(m_metrics->Query(hwnd, dpi));
+    CaptionMetrics metrics = m_metrics->Query(hwnd, dpi);
+    const DpiManager scale(metrics.dpi);
+    metrics.slabTopPx = scale.ToPx(static_cast<float>(m_slabTopPx));
+    metrics.slabLeftPx = scale.ToPx(static_cast<float>(m_slabLeftPx));
+    metrics.slabBottomPx = scale.ToPx(static_cast<float>(m_slabBottomPx));
+    metrics.slabRightPx = scale.ToPx(static_cast<float>(m_slabRightPx));
+    return ComputeLayout(metrics);
 }
 
 LRESULT CaptionHitTester::ClassifyPoint(POINT pt, SIZE clientSize, const CaptionLayout& layout)
@@ -114,7 +132,7 @@ LRESULT CaptionHitTester::ClassifyPoint(POINT pt, SIZE clientSize, const Caption
         }
         return HTTOP;
     }
-    if (PtInRect(&layout.picker, pt))
+    if (PtInRect(&layout.picker, pt) || PtInRect(&layout.slabButton, pt))
     {
         return HTCLIENT;
     }

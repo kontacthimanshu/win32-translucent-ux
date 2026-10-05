@@ -68,6 +68,46 @@ class CaptionLayout : public ::testing::TestWithParam<LayoutCase>
 {
 };
 
+TEST(CaptionLayoutSlab, TheTopAndLeftFacesMoveTheTitleIndependently)
+{
+    te::CaptionMetrics m = FakeMetrics(96, false);
+    const te::CaptionLayout flat = te::CaptionHitTester::ComputeLayout(m);
+    m.slabLeftPx = 12;
+    const te::CaptionLayout leftOnly = te::CaptionHitTester::ComputeLayout(m);
+    EXPECT_EQ(leftOnly.captionHeightPx, flat.captionHeightPx) << "no top face: the caption keeps its height";
+    EXPECT_EQ(leftOnly.dragRegion.left, 12);
+    EXPECT_EQ(leftOnly.dragRegion.top, flat.dragRegion.top);
+
+    m.slabLeftPx = 0;
+    m.slabTopPx = 12;
+    const te::CaptionLayout topOnly = te::CaptionHitTester::ComputeLayout(m);
+    EXPECT_EQ(topOnly.captionHeightPx, flat.captionHeightPx + 12);
+    EXPECT_EQ(topOnly.dragRegion.left, 0);
+    EXPECT_EQ(topOnly.dragRegion.top, flat.dragRegion.top + 12);
+}
+
+TEST(CaptionLayoutSlab, TheTopFaceJoinsTheCaptionAndTheSlabButtonSitsLeftOfThePicker)
+{
+    te::CaptionMetrics m = FakeMetrics(144, false);
+    const te::CaptionLayout flat = te::CaptionHitTester::ComputeLayout(m);
+    m.slabTopPx = 18;
+    m.slabLeftPx = 18;
+    const te::CaptionLayout slab = te::CaptionHitTester::ComputeLayout(m);
+    EXPECT_EQ(slab.captionHeightPx, flat.captionHeightPx + 18);
+    EXPECT_EQ(slab.slabButton.right, slab.picker.left);
+    EXPECT_EQ(slab.slabButton.right - slab.slabButton.left, slab.picker.right - slab.picker.left);
+    EXPECT_EQ(slab.dragRegion.right, slab.slabButton.left);
+    EXPECT_EQ(slab.dragRegion.left, 18);
+    EXPECT_EQ(slab.dragRegion.top, flat.dragRegion.top + 18);
+
+    const SIZE client = m.clientSize;
+    const POINT onButton{(slab.slabButton.left + slab.slabButton.right) / 2,
+                         (slab.slabButton.top + slab.slabButton.bottom) / 2};
+    EXPECT_EQ(te::CaptionHitTester::ClassifyPoint(onButton, client, slab), HTCLIENT);
+    const POINT onTopFace{client.cx / 2, slab.resizeBandPx + 2};
+    EXPECT_EQ(te::CaptionHitTester::ClassifyPoint(onTopFace, client, slab), HTCAPTION);
+}
+
 } // namespace
 
 TEST_P(CaptionLayout, CaptionHeightIsCaptionPlusFramePlusPaddedBorder)

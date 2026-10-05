@@ -203,6 +203,8 @@ TEST_F(MainWindowLiveSettingsTest, AnimationEffectsAreReadAgainWhenTheyChange)
 
 TEST_F(MainWindowLiveSettingsTest, LightAndDarkModeUpdateTheFrameAndTheColors)
 {
+    // A material mode: Transparent (the default) keeps white text with a halo in both.
+    m_window->SetRequestedMode(te::BackdropMode::Mica);
     for (const bool dark : {true, false, true})
     {
         m_sim.darkMode = dark;

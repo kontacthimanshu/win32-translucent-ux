@@ -42,4 +42,78 @@ TEST(MainLayoutTextScale, TheStatusBarKeepsItsHeightInASmallWindow)
     EXPECT_GE(Height(layout.toolbar), 0.0f);
 }
 
+TEST(MainLayoutSlab, ThePanesMakeRoomForTheLeftAndBottomFaces)
+{
+    // 150 %: 18 px of slab is 12 DIPs; the caption height already includes it.
+    const SIZE client{1800, 1200};
+    const te::MainLayout flat = te::MainLayout::Compute(client, 144, 45);
+    const te::MainLayout slab = te::MainLayout::Compute(client, 144, 45 + 18, 1.0f, {18, 18, 18});
+    EXPECT_FLOAT_EQ(slab.slab.top, 12.0f);
+    EXPECT_FLOAT_EQ(slab.slab.left, 12.0f);
+    EXPECT_FLOAT_EQ(slab.slab.bottom, 12.0f);
+    EXPECT_FLOAT_EQ(slab.caption.left, 0.0f);
+    EXPECT_FLOAT_EQ(slab.caption.right, flat.caption.right);
+    EXPECT_FLOAT_EQ(slab.toolbar.left, 12.0f);
+    EXPECT_FLOAT_EQ(slab.navigationPane.left, 12.0f);
+    EXPECT_FLOAT_EQ(slab.statusBar.left, 12.0f);
+    EXPECT_FLOAT_EQ(slab.statusBar.bottom, 800.0f - 12.0f);
+    EXPECT_FLOAT_EQ(Height(slab.statusBar), te::MainLayout::kStatusBarHeightDip);
+    EXPECT_FLOAT_EQ(slab.fileList.right, 1200.0f) << "the right face is off";
+    EXPECT_FLOAT_EQ(slab.slabRight.right - slab.slabRight.left, 0.0f);
+    // The face strips fill exactly what the panes left.
+    EXPECT_FLOAT_EQ(slab.slabLeft.top, slab.caption.bottom);
+    EXPECT_FLOAT_EQ(slab.slabLeft.right, slab.toolbar.left);
+    EXPECT_FLOAT_EQ(slab.slabBottom.top, slab.statusBar.bottom);
+    EXPECT_FLOAT_EQ(slab.slabBottom.bottom, 800.0f);
+}
+
+TEST(MainLayoutSlab, NoSlabLeavesTheLayoutAsBefore)
+{
+    const te::MainLayout layout = te::MainLayout::Compute({1200, 800}, 96, 31, 1.0f, {});
+    EXPECT_FLOAT_EQ(layout.slab.left, 0.0f);
+    EXPECT_FLOAT_EQ(layout.slab.bottom, 0.0f);
+    EXPECT_FLOAT_EQ(layout.toolbar.left, 0.0f);
+    EXPECT_FLOAT_EQ(layout.statusBar.bottom, 800.0f);
+    EXPECT_FLOAT_EQ(Height(layout.slabLeft), 0.0f);
+    EXPECT_FLOAT_EQ(Height(layout.slabBottom), 0.0f);
+}
+
+TEST(MainLayoutSlab, EachFaceMovesOnlyItsOwnEdge)
+{
+    const SIZE client{1200, 800};
+    const te::MainLayout leftOnly = te::MainLayout::Compute(client, 96, 31, 1.0f, {0, 10, 0});
+    EXPECT_FLOAT_EQ(leftOnly.toolbar.left, 10.0f);
+    EXPECT_FLOAT_EQ(leftOnly.statusBar.bottom, 800.0f);
+    EXPECT_FLOAT_EQ(Height(leftOnly.slabBottom), 0.0f);
+    EXPECT_FLOAT_EQ(leftOnly.slabLeft.right, 10.0f);
+
+    const te::MainLayout bottomOnly = te::MainLayout::Compute(client, 96, 31, 1.0f, {0, 0, 10});
+    EXPECT_FLOAT_EQ(bottomOnly.toolbar.left, 0.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.statusBar.bottom, 790.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.slabBottom.left, 0.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.slabBottom.top, 790.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.slabLeft.right - bottomOnly.slabLeft.left, 0.0f);
+
+    const te::MainLayout topOnly = te::MainLayout::Compute(client, 96, 31 + 10, 1.0f, {10, 0, 0});
+    EXPECT_FLOAT_EQ(topOnly.slab.top, 10.0f);
+    EXPECT_FLOAT_EQ(topOnly.toolbar.top, 41.0f);
+    EXPECT_FLOAT_EQ(topOnly.toolbar.left, 0.0f);
+    EXPECT_FLOAT_EQ(topOnly.statusBar.bottom, 800.0f);
+}
+
+TEST(MainLayoutSlab, TheRightFaceMovesThePanesInFromTheRight)
+{
+    const SIZE client{1200, 800};
+    const te::MainLayout layout = te::MainLayout::Compute(client, 96, 31, 1.0f, {0, 0, 10, 10});
+    EXPECT_FLOAT_EQ(layout.slab.right, 10.0f);
+    EXPECT_FLOAT_EQ(layout.toolbar.right, 1190.0f);
+    EXPECT_FLOAT_EQ(layout.fileList.right, 1190.0f);
+    EXPECT_FLOAT_EQ(layout.statusBar.right, 1190.0f);
+    EXPECT_FLOAT_EQ(layout.caption.right, 1200.0f) << "the caption keeps the full width";
+    EXPECT_FLOAT_EQ(layout.slabRight.left, 1190.0f);
+    EXPECT_FLOAT_EQ(layout.slabRight.top, layout.caption.bottom);
+    EXPECT_FLOAT_EQ(layout.slabRight.bottom, 800.0f);
+    EXPECT_FLOAT_EQ(layout.slabBottom.right, 1190.0f) << "the strips do not overlap";
+}
+
 } // namespace

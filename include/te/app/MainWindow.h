@@ -12,6 +12,7 @@
 #include <te/app/MainLayout.h>
 #include <te/appearance/BackdropManager.h>
 #include <te/appearance/ColorPicker.h>
+#include <te/appearance/SlabPopup.h>
 #include <te/appearance/ThemeManager.h>
 #include <te/core/GenerationGuard.h>
 #include <te/render/RenderDevice.h>
@@ -216,6 +217,12 @@ class MainWindow
     [[nodiscard]] ColorPicker* Picker() noexcept
     {
         return m_picker.get();
+    }
+    // Opens the slab-thickness popup under the slab button, or closes it if it is open.
+    void ToggleSlabPopup();
+    [[nodiscard]] SlabPopup* Slab() noexcept
+    {
+        return m_slabPopup.get();
     }
 
     // Navigation controller (T064). How a navigation affects the history once it
@@ -429,6 +436,7 @@ class MainWindow
     EffectiveAppearance m_effective;
     bool m_backdropSupported = false; // last ProbeSystemBackdrop result
     std::unique_ptr<ColorPicker> m_picker;
+    std::unique_ptr<SlabPopup> m_slabPopup;
 
     // Navigation (T064).
     ShellNavigator m_navigator;

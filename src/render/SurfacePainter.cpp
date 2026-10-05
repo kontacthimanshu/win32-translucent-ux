@@ -6,6 +6,7 @@
 #include <wil/result_macros.h>
 
 #include <algorithm>
+#include <initializer_list>
 
 namespace te::SurfacePainter
 {
@@ -25,14 +26,46 @@ bool IsEmpty(const D2D1_RECT_F& r)
 
 void FillRegions(ID2D1DeviceContext* dc, const MainLayout& layout, ID2D1Brush* brush)
 {
-    for (const D2D1_RECT_F& region :
-         {layout.caption, layout.toolbar, layout.navigationPane, layout.fileList, layout.statusBar})
+    for (const D2D1_RECT_F& region : {layout.caption, layout.toolbar, layout.navigationPane, layout.fileList,
+                                      layout.statusBar, layout.slabLeft, layout.slabBottom, layout.slabRight})
     {
         if (!IsEmpty(region))
         {
             dc->FillRectangle(region, brush);
         }
     }
+}
+
+// A closed polygon as a path geometry; nullptr on failure.
+wil::com_ptr<ID2D1PathGeometry> Polygon(ID2D1Factory* factory, std::initializer_list<D2D1_POINT_2F> points)
+{
+    wil::com_ptr<ID2D1PathGeometry> path;
+    wil::com_ptr<ID2D1GeometrySink> sink;
+    if (FAILED_LOG(factory->CreatePathGeometry(path.put())) || FAILED_LOG(path->Open(sink.put())))
+    {
+        return nullptr;
+    }
+    auto it = points.begin();
+    sink->BeginFigure(*it, D2D1_FIGURE_BEGIN_FILLED);
+    for (++it; it != points.end(); ++it)
+    {
+        sink->AddLine(*it);
+    }
+    sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+    if (FAILED_LOG(sink->Close()))
+    {
+        return nullptr;
+    }
+    return path;
+}
+
+// What the frame decorations (bevel, slab faces) leave alone: the caption buttons while
+// they show the DWM's own material. In Transparent the glass covers them like the rest of
+// the caption (PaintSurfaces), so the decorations run across them too; anything else
+// would leave the buttons as a darker block in the lit top edge.
+D2D1_RECT_F DecorationExclusion(const D2D1_RECT_F& captionButtons, const EffectiveAppearance& effective)
+{
+    return effective.applied == BackdropMode::Transparent ? D2D1_RECT_F{} : captionButtons;
 }
 
 } // namespace
@@ -231,7 +264,7 @@ void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT
     wil::com_ptr<ID2D1GeometrySink> sink;
     const D2D1_RECT_F whole = D2D1::RectF(0.0f, 0.0f, client.width, client.height);
     if (FAILED_LOG(factory->CreateRectangleGeometry(whole, all.put())) ||
-        FAILED_LOG(factory->CreateRectangleGeometry(captionButtons, buttons.put())) ||
+        FAILED_LOG(factory->CreateRectangleGeometry(DecorationExclusion(captionButtons, effective), buttons.put())) ||
         FAILED_LOG(factory->CreatePathGeometry(mask.put())) || FAILED_LOG(mask->Open(sink.put())) ||
         FAILED_LOG(all->CombineWithGeometry(buttons.get(), D2D1_COMBINE_MODE_EXCLUDE, nullptr, sink.get())) ||
         FAILED_LOG(sink->Close()))
@@ -257,6 +290,155 @@ void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT
         dc->DrawRoundedRectangle(
             D2D1::RoundedRect(r, std::max(0.0f, radius - 0.5f), std::max(0.0f, radius - 0.5f)), edge.get(),
             1.0f);
+    }
+    dc->PopLayer();
+}
+
+void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& layout,
+               const EffectiveAppearance& effective)
+{
+    const float T = layout.slab.top;
+    const float L = layout.slab.left;
+    const float B = layout.slab.bottom;
+    const float R = layout.slab.right;
+    const float o = layout.slabOrigin;
+    if ((T <= 0.0f && L <= 0.0f && B <= 0.0f && R <= 0.0f) || effective.reason == FallbackReason::HighContrast ||
+        client.width <= L + R || client.height <= o + T + B)
+    {
+        return;
+    }
+    // Light from the top left, as for the frame bevel: the top face catches it, the left one
+    // half of it, the right one is half in shade and the bottom one in shade. Over a dark
+    // base light needs less weight to show and shade more.
+    const bool dark = Contrast::RelativeLuminance(effective.base) < 0.5;
+    const D2D1_COLOR_F topLight = D2D1::ColorF(1.0f, 1.0f, 1.0f, dark ? 0.16f : 0.50f);
+    const D2D1_COLOR_F sideLight = dark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.07f) : D2D1::ColorF(0, 0.05f);
+    const D2D1_COLOR_F bottomShade = D2D1::ColorF(0, dark ? 0.40f : 0.20f);
+    const D2D1_COLOR_F rightShade = D2D1::ColorF(0, dark ? 0.28f : 0.12f);
+    const D2D1_COLOR_F edgeLight = D2D1::ColorF(1.0f, 1.0f, 1.0f, dark ? 0.30f : 0.85f);
+    const D2D1_COLOR_F edgeShade = D2D1::ColorF(0, dark ? 0.60f : 0.30f);
+
+    wil::com_ptr<ID2D1Factory> factory;
+    dc->GetFactory(factory.put());
+
+    // Back outline (the client edges) and front face (inset by each face that is on); the
+    // faces join them, mitred where two meet.
+    const float w = client.width;
+    const float h = client.height;
+    const D2D1_POINT_2F backTopLeft = D2D1::Point2F(0.0f, o);
+    const D2D1_POINT_2F backTopRight = D2D1::Point2F(w, o);
+    const D2D1_POINT_2F backBottomLeft = D2D1::Point2F(0.0f, h);
+    const D2D1_POINT_2F backBottomRight = D2D1::Point2F(w, h);
+    const D2D1_POINT_2F frontTopLeft = D2D1::Point2F(L, o + T);
+    const D2D1_POINT_2F frontTopRight = D2D1::Point2F(w - R, o + T);
+    const D2D1_POINT_2F frontBottomLeft = D2D1::Point2F(L, h - B);
+    const D2D1_POINT_2F frontBottomRight = D2D1::Point2F(w - R, h - B);
+
+    // Each face: a gradient across its thickness, full strength at the front edge and
+    // fading toward the back, so it reads as a surface turning away.
+    const auto face = [&](std::initializer_list<D2D1_POINT_2F> points, D2D1_COLOR_F color, D2D1_POINT_2F back,
+                          D2D1_POINT_2F front) {
+        const auto geometry = Polygon(factory.get(), points);
+        D2D1_COLOR_F faded = color;
+        faded.a *= 0.55f;
+        const D2D1_GRADIENT_STOP stops[] = {{0.0f, faded}, {1.0f, color}};
+        wil::com_ptr<ID2D1GradientStopCollection> collection;
+        wil::com_ptr<ID2D1LinearGradientBrush> brush;
+        if (geometry && SUCCEEDED_LOG(dc->CreateGradientStopCollection(stops, 2, collection.put())) &&
+            SUCCEEDED_LOG(dc->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties(back, front),
+                                                        collection.get(), brush.put())))
+        {
+            dc->FillGeometry(geometry.get(), brush.get());
+        }
+    };
+
+    // Everything except the caption buttons while the DWM draws their background.
+    const D2D1_RECT_F whole = D2D1::RectF(0.0f, 0.0f, w, h);
+    wil::com_ptr<ID2D1RectangleGeometry> all;
+    wil::com_ptr<ID2D1RectangleGeometry> buttons;
+    wil::com_ptr<ID2D1PathGeometry> mask;
+    wil::com_ptr<ID2D1GeometrySink> sink;
+    if (FAILED_LOG(factory->CreateRectangleGeometry(whole, all.put())) ||
+        FAILED_LOG(
+            factory->CreateRectangleGeometry(DecorationExclusion(layout.captionButtons, effective), buttons.put())) ||
+        FAILED_LOG(factory->CreatePathGeometry(mask.put())) || FAILED_LOG(mask->Open(sink.put())) ||
+        FAILED_LOG(all->CombineWithGeometry(buttons.get(), D2D1_COMBINE_MODE_EXCLUDE, nullptr, sink.get())) ||
+        FAILED_LOG(sink->Close()))
+    {
+        return;
+    }
+    dc->PushLayer(D2D1::LayerParameters1(whole, mask.get()), nullptr);
+
+    if (T > 0.0f)
+    {
+        face({backTopLeft, backTopRight, frontTopRight, frontTopLeft}, topLight, D2D1::Point2F(0.0f, o),
+             D2D1::Point2F(0.0f, o + T));
+    }
+    if (L > 0.0f)
+    {
+        face({backTopLeft, frontTopLeft, frontBottomLeft, backBottomLeft}, sideLight, D2D1::Point2F(0.0f, 0.0f),
+             D2D1::Point2F(L, 0.0f));
+    }
+    if (B > 0.0f)
+    {
+        face({backBottomLeft, frontBottomLeft, frontBottomRight, backBottomRight}, bottomShade,
+             D2D1::Point2F(0.0f, h), D2D1::Point2F(0.0f, h - B));
+    }
+    if (R > 0.0f)
+    {
+        face({backTopRight, backBottomRight, frontBottomRight, frontTopRight}, rightShade, D2D1::Point2F(w, 0.0f),
+             D2D1::Point2F(w - R, 0.0f));
+    }
+
+    // The front face's edges: a line of light where it meets the top and left faces, a line
+    // of shade where it meets the bottom and right ones, and a fainter crease along each
+    // mitre.
+    wil::com_ptr<ID2D1SolidColorBrush> line;
+    if (SUCCEEDED_LOG(dc->CreateSolidColorBrush(edgeLight, line.put())))
+    {
+        if (T > 0.0f)
+        {
+            dc->DrawLine(D2D1::Point2F(L, o + T + 0.5f), D2D1::Point2F(w - R, o + T + 0.5f), line.get(), 1.0f);
+        }
+        if (L > 0.0f)
+        {
+            dc->DrawLine(D2D1::Point2F(L + 0.5f, o + T), D2D1::Point2F(L + 0.5f, h - B), line.get(), 1.0f);
+        }
+        if (B > 0.0f)
+        {
+            line->SetColor(edgeShade);
+            dc->DrawLine(D2D1::Point2F(L, h - B - 0.5f), D2D1::Point2F(w - R, h - B - 0.5f), line.get(), 1.0f);
+        }
+        if (R > 0.0f)
+        {
+            line->SetColor(edgeShade);
+            dc->DrawLine(D2D1::Point2F(w - R - 0.5f, o + T), D2D1::Point2F(w - R - 0.5f, h - B), line.get(), 1.0f);
+        }
+        D2D1_COLOR_F crease = edgeLight;
+        crease.a *= 0.5f;
+        if (T > 0.0f && L > 0.0f)
+        {
+            line->SetColor(crease);
+            dc->DrawLine(backTopLeft, frontTopLeft, line.get(), 1.0f);
+        }
+        if (B > 0.0f && L > 0.0f)
+        {
+            crease = edgeShade;
+            crease.a *= 0.5f;
+            line->SetColor(crease);
+            dc->DrawLine(backBottomLeft, frontBottomLeft, line.get(), 1.0f);
+        }
+        crease = edgeShade;
+        crease.a *= 0.5f;
+        line->SetColor(crease);
+        if (T > 0.0f && R > 0.0f)
+        {
+            dc->DrawLine(backTopRight, frontTopRight, line.get(), 1.0f);
+        }
+        if (B > 0.0f && R > 0.0f)
+        {
+            dc->DrawLine(backBottomRight, frontBottomRight, line.get(), 1.0f);
+        }
     }
     dc->PopLayer();
 }

@@ -8,6 +8,7 @@
 #include <wil/resource.h>
 #include <wil/result.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -15,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 namespace te
@@ -161,6 +163,42 @@ AppearanceSettings ParseAppearance(const json& appearance, std::vector<std::wstr
     ReadOpacity(appearance, "surfaceOpacity", kSurfaceMin, kSurfaceMax, settings.surfaceOpacity, defaulted,
                 L"surfaceOpacity");
 
+    if (const auto it = appearance.find("slabThicknessPx"); it != appearance.end())
+    {
+        if (it->is_number())
+        {
+            const double raw = it->get<double>();
+            settings.slabThicknessPx =
+                static_cast<int>(std::lround(std::clamp(raw, double{kSlabMinPx}, double{kSlabMaxPx})));
+            if (std::fabs(settings.slabThicknessPx - raw) > 1e-9)
+            {
+                defaulted.emplace_back(L"slabThicknessPx"); // clamped or rounded
+            }
+        }
+        else
+        {
+            defaulted.emplace_back(L"slabThicknessPx");
+        }
+    }
+
+    for (const auto& [key, name, target] :
+         {std::tuple{"slabTop", L"slabTop", &settings.slabTop}, std::tuple{"slabLeft", L"slabLeft", &settings.slabLeft},
+          std::tuple{"slabBottom", L"slabBottom", &settings.slabBottom},
+          std::tuple{"slabRight", L"slabRight", &settings.slabRight}})
+    {
+        if (const auto it = appearance.find(key); it != appearance.end())
+        {
+            if (it->is_boolean())
+            {
+                *target = it->get<bool>();
+            }
+            else
+            {
+                defaulted.emplace_back(name);
+            }
+        }
+    }
+
     if (const auto it = appearance.find("customColors"); it != appearance.end())
     {
         if (!it->is_array())
@@ -201,6 +239,11 @@ json ToJson(const AppearanceSettings& s)
         std::holds_alternative<Rgb>(s.tintColor) ? ToHex(std::get<Rgb>(s.tintColor)) : std::string("accent");
     appearance["tintOpacity"] = SnapOpacity(s.tintOpacity, kTintMin, kTintMax);
     appearance["surfaceOpacity"] = SnapOpacity(s.surfaceOpacity, kSurfaceMin, kSurfaceMax);
+    appearance["slabThicknessPx"] = std::clamp(s.slabThicknessPx, kSlabMinPx, kSlabMaxPx);
+    appearance["slabTop"] = s.slabTop;
+    appearance["slabLeft"] = s.slabLeft;
+    appearance["slabBottom"] = s.slabBottom;
+    appearance["slabRight"] = s.slabRight;
     appearance["customColors"] = std::move(colors);
 
     json root;
@@ -365,6 +408,11 @@ AppearanceSettings SettingsManager::Reset(const AppearanceSettings& current)
 {
     AppearanceSettings reset = Defaults();
     reset.customColors = current.customColors; // Reset keeps the custom palette (R-11)
+    reset.slabThicknessPx = current.slabThicknessPx; // set from its own popup, not the color one
+    reset.slabTop = current.slabTop;
+    reset.slabLeft = current.slabLeft;
+    reset.slabBottom = current.slabBottom;
+    reset.slabRight = current.slabRight;
     return reset;
 }
 

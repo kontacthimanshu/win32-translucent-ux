@@ -40,6 +40,18 @@
 #define IDC_PREVIEW        2051
 #define IDC_RESET          2060
 
+// Slab popup dialog and controls (SlabPopup)
+#define IDD_SLAB           201
+#define IDC_SLAB_LABEL     2100
+#define IDC_SLAB_TRACK     2101
+#define IDC_SLAB_VALUE     2102
+#define IDC_SLAB_DEFAULT   2103
+#define IDC_SLAB_TOP       2104
+#define IDC_SLAB_LEFT      2105
+#define IDC_SLAB_BOTTOM    2106
+#define IDC_SLAB_EDGES     2107
+#define IDC_SLAB_RIGHT     2108
+
 // Popup strings (STRINGTABLE)
 #define IDS_REASON_REQUIRES_22621   1110
 #define IDS_REASON_TRANSPARENCY_OFF 1111
