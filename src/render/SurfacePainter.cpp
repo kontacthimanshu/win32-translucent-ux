@@ -59,6 +59,15 @@ wil::com_ptr<ID2D1PathGeometry> Polygon(ID2D1Factory* factory, std::initializer_
     return path;
 }
 
+// What the frame decorations (bevel, slab faces) leave alone: the caption buttons while
+// they show the DWM's own material. In Transparent the glass covers them like the rest of
+// the caption (PaintSurfaces), so the decorations run across them too; anything else
+// would leave the buttons as a darker block in the lit top edge.
+D2D1_RECT_F DecorationExclusion(const D2D1_RECT_F& captionButtons, const EffectiveAppearance& effective)
+{
+    return effective.applied == BackdropMode::Transparent ? D2D1_RECT_F{} : captionButtons;
+}
+
 } // namespace
 
 void PaintSurfaces(ID2D1DeviceContext* dc, const MainLayout& layout, const EffectiveAppearance& effective)
@@ -255,7 +264,7 @@ void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT
     wil::com_ptr<ID2D1GeometrySink> sink;
     const D2D1_RECT_F whole = D2D1::RectF(0.0f, 0.0f, client.width, client.height);
     if (FAILED_LOG(factory->CreateRectangleGeometry(whole, all.put())) ||
-        FAILED_LOG(factory->CreateRectangleGeometry(captionButtons, buttons.put())) ||
+        FAILED_LOG(factory->CreateRectangleGeometry(DecorationExclusion(captionButtons, effective), buttons.put())) ||
         FAILED_LOG(factory->CreatePathGeometry(mask.put())) || FAILED_LOG(mask->Open(sink.put())) ||
         FAILED_LOG(all->CombineWithGeometry(buttons.get(), D2D1_COMBINE_MODE_EXCLUDE, nullptr, sink.get())) ||
         FAILED_LOG(sink->Close()))
@@ -342,14 +351,15 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
         }
     };
 
-    // Everything except the caption buttons, which the DWM draws.
+    // Everything except the caption buttons while the DWM draws their background.
     const D2D1_RECT_F whole = D2D1::RectF(0.0f, 0.0f, w, h);
     wil::com_ptr<ID2D1RectangleGeometry> all;
     wil::com_ptr<ID2D1RectangleGeometry> buttons;
     wil::com_ptr<ID2D1PathGeometry> mask;
     wil::com_ptr<ID2D1GeometrySink> sink;
     if (FAILED_LOG(factory->CreateRectangleGeometry(whole, all.put())) ||
-        FAILED_LOG(factory->CreateRectangleGeometry(layout.captionButtons, buttons.put())) ||
+        FAILED_LOG(
+            factory->CreateRectangleGeometry(DecorationExclusion(layout.captionButtons, effective), buttons.put())) ||
         FAILED_LOG(factory->CreatePathGeometry(mask.put())) || FAILED_LOG(mask->Open(sink.put())) ||
         FAILED_LOG(all->CombineWithGeometry(buttons.get(), D2D1_COMBINE_MODE_EXCLUDE, nullptr, sink.get())) ||
         FAILED_LOG(sink->Close()))

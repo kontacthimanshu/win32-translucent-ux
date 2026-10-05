@@ -48,7 +48,8 @@ void PaintDepth(ID2D1DeviceContext* dc, const MainLayout& layout, const Effectiv
 // DWM border, a bright 1-DIP edge and a softer kBevelDip band along the top and left,
 // fading to shade along the bottom and right, following the DWM's rounded corners
 // (kCornerRadiusDip; square when maximized). The caption buttons are left untouched, so
-// the DWM-drawn buttons and their states show as before. Nothing in high contrast.
+// the DWM-drawn buttons and their states show as before - except in Transparent, where the
+// glass covers them and the rim runs across them. Nothing in high contrast.
 inline constexpr float kBevelDip = 4.0f;
 inline constexpr float kCornerRadiusDip = 8.0f; // DWMWCP_ROUND
 void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT_F& captionButtons,
@@ -58,7 +59,8 @@ void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT
 // along the top (lit), the left (half lit) and the bottom (in shade), each drawn only when
 // on, mitred where two meet and meeting the front face (the panes) at a crisp edge. The
 // faces are the glass itself (PaintSurfaces fills layout.slabLeft and layout.slabBottom);
-// this draws only their shading, after the content. The caption buttons are left untouched.
+// this draws only their shading, after the content. The caption buttons are left untouched,
+// except in Transparent, where the glass covers them and the top face runs across them.
 // Nothing when every face is off or in high contrast.
 void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& layout,
                const EffectiveAppearance& effective);

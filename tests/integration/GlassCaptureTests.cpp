@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdio>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -234,3 +235,71 @@ TEST(GlassCapture, DISABLED_EditBoxes)
 }
 
 } // namespace
+
+namespace
+{
+
+COLORREF ScreenPixel(POINT screen)
+{
+    const HDC dc = GetDC(nullptr);
+    const COLORREF c = GetPixel(dc, screen.x, screen.y);
+    ReleaseDC(nullptr, dc);
+    return c;
+}
+
+} // namespace
+
+// The caption buttons at launch with the default settings (Transparent): the glass over
+// them should match the caption strip next to them, not a grey of the DWM's own.
+TEST(GlassCapture, DISABLED_CaptionButtonsAtLaunch)
+{
+    wchar_t temp[MAX_PATH]{};
+    GetTempPathW(MAX_PATH, temp);
+    const std::filesystem::path folder = std::filesystem::path(temp) / L"te-test" / L"nested";
+    ASSERT_TRUE(std::filesystem::exists(folder)) << "run tools/New-TestData.ps1";
+    const HWND stripes = CreateStripes(RECT{100, 100, 1200, 850});
+    ASSERT_NE(stripes, nullptr);
+    Pump(200);
+
+    MemoryStore store{te::AppearanceSettings{}};
+    te::MainWindow::Options options;
+    options.settingsStore = &store;
+    options.startShell = true;
+    options.initialPath = folder.wstring();
+    options.iconResourceId = IDI_APP;
+    options.instance = GetModuleHandleW(nullptr);
+    options.title = L"glass capture";
+    options.quitOnDestroy = false;
+    auto window = std::make_unique<te::MainWindow>(std::move(options));
+    ASSERT_HRESULT_SUCCEEDED(window->Create(SW_SHOWNORMAL));
+    const HWND hwnd = window->Hwnd();
+    Pump(1200);
+
+    const auto sample = [&](const wchar_t* when) {
+        const RECT buttons = window->TitleBar().Layout().captionButtons;
+        const RECT picker = window->TitleBar().Layout().slabButton;
+        // A point in the gap above Minimize's glyph, and one in the caption left of the buttons.
+        POINT inButtons{buttons.left + 6, buttons.top + 4};
+        POINT inCaption{picker.left - 30, buttons.top + 4};
+        ClientToScreen(hwnd, &inButtons);
+        ClientToScreen(hwnd, &inCaption);
+        const COLORREF b = ScreenPixel(inButtons);
+        const COLORREF c = ScreenPixel(inCaption);
+        std::printf("%ls: buttons rect (%ld,%ld)-(%ld,%ld); button pixel %02X%02X%02X, caption pixel %02X%02X%02X\n",
+                    when, buttons.left, buttons.top, buttons.right, buttons.bottom, GetRValue(b), GetGValue(b),
+                    GetBValue(b), GetRValue(c), GetGValue(c), GetBValue(c));
+    };
+    sample(L"launch");
+    te::test::SaveScreen(hwnd, L"te-caption-launch.bmp");
+
+    RECT r{};
+    GetWindowRect(hwnd, &r);
+    SetWindowPos(hwnd, nullptr, 0, 0, r.right - r.left + 40, r.bottom - r.top, SWP_NOMOVE | SWP_NOZORDER);
+    Pump(500);
+    sample(L"after resize");
+    te::test::SaveScreen(hwnd, L"te-caption-resized.bmp");
+
+    DestroyWindow(hwnd);
+    Pump(100);
+    DestroyWindow(stripes);
+}
