@@ -6,6 +6,7 @@
 #include <wil/result_macros.h>
 
 #include <algorithm>
+#include <cmath>
 #include <initializer_list>
 
 namespace te::SurfacePainter
@@ -50,6 +51,50 @@ wil::com_ptr<ID2D1PathGeometry> Polygon(ID2D1Factory* factory, std::initializer_
     for (++it; it != points.end(); ++it)
     {
         sink->AddLine(*it);
+    }
+    sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+    if (FAILED_LOG(sink->Close()))
+    {
+        return nullptr;
+    }
+    return path;
+}
+
+// A rectangle with each corner rounded by its own radius (0 = square), clockwise from the
+// top left; nullptr on failure.
+wil::com_ptr<ID2D1PathGeometry> RoundedRectPath(ID2D1Factory* factory, const D2D1_RECT_F& r, float topLeft,
+                                                float topRight, float bottomRight, float bottomLeft)
+{
+    wil::com_ptr<ID2D1PathGeometry> path;
+    wil::com_ptr<ID2D1GeometrySink> sink;
+    if (FAILED_LOG(factory->CreatePathGeometry(path.put())) || FAILED_LOG(path->Open(sink.put())))
+    {
+        return nullptr;
+    }
+    const auto arc = [&](D2D1_POINT_2F to, float radius) {
+        sink->AddArc(D2D1::ArcSegment(to, D2D1::SizeF(radius, radius), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE,
+                                      D2D1_ARC_SIZE_SMALL));
+    };
+    sink->BeginFigure(D2D1::Point2F(r.left + topLeft, r.top), D2D1_FIGURE_BEGIN_FILLED);
+    sink->AddLine(D2D1::Point2F(r.right - topRight, r.top));
+    if (topRight > 0.0f)
+    {
+        arc(D2D1::Point2F(r.right, r.top + topRight), topRight);
+    }
+    sink->AddLine(D2D1::Point2F(r.right, r.bottom - bottomRight));
+    if (bottomRight > 0.0f)
+    {
+        arc(D2D1::Point2F(r.right - bottomRight, r.bottom), bottomRight);
+    }
+    sink->AddLine(D2D1::Point2F(r.left + bottomLeft, r.bottom));
+    if (bottomLeft > 0.0f)
+    {
+        arc(D2D1::Point2F(r.left, r.bottom - bottomLeft), bottomLeft);
+    }
+    sink->AddLine(D2D1::Point2F(r.left, r.top + topLeft));
+    if (topLeft > 0.0f)
+    {
+        arc(D2D1::Point2F(r.left + topLeft, r.top), topLeft);
     }
     sink->EndFigure(D2D1_FIGURE_END_CLOSED);
     if (FAILED_LOG(sink->Close()))
@@ -321,123 +366,147 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
     wil::com_ptr<ID2D1Factory> factory;
     dc->GetFactory(factory.put());
 
-    // Back outline (the client edges) and front face (inset by each face that is on); the
-    // faces join them, mitred where two meet.
+    // Back outline (the client edges) and front face (inset by each face that is on). The
+    // front face's corners are rounded like the window's own (kCornerRadiusDip) where two
+    // faces meet; a corner on an edge without a face stays square, flush with the window.
     const float w = client.width;
     const float h = client.height;
+    const D2D1_RECT_F front = D2D1::RectF(L, o + T, w - R, h - B);
+    const float radius =
+        std::min(kCornerRadiusDip, std::min(front.right - front.left, front.bottom - front.top) / 4.0f);
+    const float rTopLeft = T > 0.0f && L > 0.0f ? radius : 0.0f;
+    const float rTopRight = T > 0.0f && R > 0.0f ? radius : 0.0f;
+    const float rBottomRight = B > 0.0f && R > 0.0f ? radius : 0.0f;
+    const float rBottomLeft = B > 0.0f && L > 0.0f ? radius : 0.0f;
+
     const D2D1_POINT_2F backTopLeft = D2D1::Point2F(0.0f, o);
     const D2D1_POINT_2F backTopRight = D2D1::Point2F(w, o);
     const D2D1_POINT_2F backBottomLeft = D2D1::Point2F(0.0f, h);
     const D2D1_POINT_2F backBottomRight = D2D1::Point2F(w, h);
-    const D2D1_POINT_2F frontTopLeft = D2D1::Point2F(L, o + T);
-    const D2D1_POINT_2F frontTopRight = D2D1::Point2F(w - R, o + T);
-    const D2D1_POINT_2F frontBottomLeft = D2D1::Point2F(L, h - B);
-    const D2D1_POINT_2F frontBottomRight = D2D1::Point2F(w - R, h - B);
-
-    // Each face: a gradient across its thickness, full strength at the front edge and
-    // fading toward the back, so it reads as a surface turning away.
-    const auto face = [&](std::initializer_list<D2D1_POINT_2F> points, D2D1_COLOR_F color, D2D1_POINT_2F back,
-                          D2D1_POINT_2F front) {
-        const auto geometry = Polygon(factory.get(), points);
-        D2D1_COLOR_F faded = color;
-        faded.a *= 0.55f;
-        const D2D1_GRADIENT_STOP stops[] = {{0.0f, faded}, {1.0f, color}};
-        wil::com_ptr<ID2D1GradientStopCollection> collection;
-        wil::com_ptr<ID2D1LinearGradientBrush> brush;
-        if (geometry && SUCCEEDED_LOG(dc->CreateGradientStopCollection(stops, 2, collection.put())) &&
-            SUCCEEDED_LOG(dc->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties(back, front),
-                                                        collection.get(), brush.put())))
+    // Each mitre continued past the front corner, so the faces' regions also take the
+    // pocket a rounded corner leaves, split between the two faces along the mitre.
+    const auto beyond = [&](D2D1_POINT_2F frontCorner, D2D1_POINT_2F backCorner) {
+        const float dx = frontCorner.x - backCorner.x;
+        const float dy = frontCorner.y - backCorner.y;
+        const float length = std::sqrt(dx * dx + dy * dy);
+        if (length <= 0.0f)
         {
-            dc->FillGeometry(geometry.get(), brush.get());
+            return frontCorner;
         }
+        const float reach = 3.0f * std::max(radius, 1.0f) / length;
+        return D2D1::Point2F(frontCorner.x + dx * reach, frontCorner.y + dy * reach);
+    };
+    const D2D1_POINT_2F innerTopLeft = beyond(D2D1::Point2F(front.left, front.top), backTopLeft);
+    const D2D1_POINT_2F innerTopRight = beyond(D2D1::Point2F(front.right, front.top), backTopRight);
+    const D2D1_POINT_2F innerBottomLeft = beyond(D2D1::Point2F(front.left, front.bottom), backBottomLeft);
+    const D2D1_POINT_2F innerBottomRight = beyond(D2D1::Point2F(front.right, front.bottom), backBottomRight);
+
+    // Each face's region: from its back edge to the continued mitres. The face shows where
+    // the region is outside the front face; its edge line where the region meets it.
+    struct Face
+    {
+        bool on;
+        wil::com_ptr<ID2D1PathGeometry> region;
+        D2D1_COLOR_F color;
+        D2D1_COLOR_F edge;
+        D2D1_POINT_2F back; // the gradient, from the back edge to the front one
+        D2D1_POINT_2F front;
+    };
+    Face faces[] = {
+        {T > 0.0f, Polygon(factory.get(), {backTopLeft, backTopRight, innerTopRight, innerTopLeft}), topLight,
+         edgeLight, D2D1::Point2F(0.0f, o), D2D1::Point2F(0.0f, o + T)},
+        {L > 0.0f, Polygon(factory.get(), {backTopLeft, innerTopLeft, innerBottomLeft, backBottomLeft}), sideLight,
+         edgeLight, D2D1::Point2F(0.0f, 0.0f), D2D1::Point2F(L, 0.0f)},
+        {B > 0.0f, Polygon(factory.get(), {backBottomLeft, innerBottomLeft, innerBottomRight, backBottomRight}),
+         bottomShade, edgeShade, D2D1::Point2F(0.0f, h), D2D1::Point2F(0.0f, h - B)},
+        {R > 0.0f, Polygon(factory.get(), {backTopRight, backBottomRight, innerBottomRight, innerTopRight}),
+         rightShade, edgeShade, D2D1::Point2F(w, 0.0f), D2D1::Point2F(w - R, 0.0f)},
     };
 
-    // Everything except the caption buttons while the DWM draws their background.
+    // Everything except the caption buttons while the DWM draws their background, and
+    // within that, everything outside the front face (where the faces show).
     const D2D1_RECT_F whole = D2D1::RectF(0.0f, 0.0f, w, h);
+    const auto frontPath = RoundedRectPath(factory.get(), front, rTopLeft, rTopRight, rBottomRight, rBottomLeft);
     wil::com_ptr<ID2D1RectangleGeometry> all;
     wil::com_ptr<ID2D1RectangleGeometry> buttons;
     wil::com_ptr<ID2D1PathGeometry> mask;
+    wil::com_ptr<ID2D1PathGeometry> outside;
     wil::com_ptr<ID2D1GeometrySink> sink;
-    if (FAILED_LOG(factory->CreateRectangleGeometry(whole, all.put())) ||
+    wil::com_ptr<ID2D1GeometrySink> outsideSink;
+    if (!frontPath || FAILED_LOG(factory->CreateRectangleGeometry(whole, all.put())) ||
         FAILED_LOG(
             factory->CreateRectangleGeometry(DecorationExclusion(layout.captionButtons, effective), buttons.put())) ||
         FAILED_LOG(factory->CreatePathGeometry(mask.put())) || FAILED_LOG(mask->Open(sink.put())) ||
         FAILED_LOG(all->CombineWithGeometry(buttons.get(), D2D1_COMBINE_MODE_EXCLUDE, nullptr, sink.get())) ||
-        FAILED_LOG(sink->Close()))
+        FAILED_LOG(sink->Close()) || FAILED_LOG(factory->CreatePathGeometry(outside.put())) ||
+        FAILED_LOG(outside->Open(outsideSink.put())) ||
+        FAILED_LOG(all->CombineWithGeometry(frontPath.get(), D2D1_COMBINE_MODE_EXCLUDE, nullptr, outsideSink.get())) ||
+        FAILED_LOG(outsideSink->Close()))
     {
         return;
     }
     dc->PushLayer(D2D1::LayerParameters1(whole, mask.get()), nullptr);
 
-    if (T > 0.0f)
+    // The faces: a gradient across each one's thickness, full strength at the front edge and
+    // fading toward the back, so it reads as a surface turning away.
+    dc->PushLayer(D2D1::LayerParameters1(whole, outside.get()), nullptr);
+    for (const Face& face : faces)
     {
-        face({backTopLeft, backTopRight, frontTopRight, frontTopLeft}, topLight, D2D1::Point2F(0.0f, o),
-             D2D1::Point2F(0.0f, o + T));
-    }
-    if (L > 0.0f)
-    {
-        face({backTopLeft, frontTopLeft, frontBottomLeft, backBottomLeft}, sideLight, D2D1::Point2F(0.0f, 0.0f),
-             D2D1::Point2F(L, 0.0f));
-    }
-    if (B > 0.0f)
-    {
-        face({backBottomLeft, frontBottomLeft, frontBottomRight, backBottomRight}, bottomShade,
-             D2D1::Point2F(0.0f, h), D2D1::Point2F(0.0f, h - B));
-    }
-    if (R > 0.0f)
-    {
-        face({backTopRight, backBottomRight, frontBottomRight, frontTopRight}, rightShade, D2D1::Point2F(w, 0.0f),
-             D2D1::Point2F(w - R, 0.0f));
+        if (!face.on || !face.region)
+        {
+            continue;
+        }
+        D2D1_COLOR_F faded = face.color;
+        faded.a *= 0.55f;
+        const D2D1_GRADIENT_STOP stops[] = {{0.0f, faded}, {1.0f, face.color}};
+        wil::com_ptr<ID2D1GradientStopCollection> collection;
+        wil::com_ptr<ID2D1LinearGradientBrush> brush;
+        if (SUCCEEDED_LOG(dc->CreateGradientStopCollection(stops, 2, collection.put())) &&
+            SUCCEEDED_LOG(dc->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties(face.back, face.front),
+                                                        collection.get(), brush.put())))
+        {
+            dc->FillGeometry(face.region.get(), brush.get());
+        }
     }
 
-    // The front face's edges: a line of light where it meets the top and left faces, a line
-    // of shade where it meets the bottom and right ones, and a fainter crease along each
-    // mitre.
+    // A fainter crease along each mitre where two faces meet, up to the front face's curve.
     wil::com_ptr<ID2D1SolidColorBrush> line;
     if (SUCCEEDED_LOG(dc->CreateSolidColorBrush(edgeLight, line.put())))
     {
-        if (T > 0.0f)
+        const auto crease = [&](bool on, D2D1_COLOR_F color, D2D1_POINT_2F back, D2D1_POINT_2F inner) {
+            if (on)
+            {
+                color.a *= 0.5f;
+                line->SetColor(color);
+                dc->DrawLine(back, inner, line.get(), 1.0f);
+            }
+        };
+        crease(T > 0.0f && L > 0.0f, edgeLight, backTopLeft, innerTopLeft);
+        crease(B > 0.0f && L > 0.0f, edgeShade, backBottomLeft, innerBottomLeft);
+        crease(T > 0.0f && R > 0.0f, edgeShade, backTopRight, innerTopRight);
+        crease(B > 0.0f && R > 0.0f, edgeShade, backBottomRight, innerBottomRight);
+    }
+    dc->PopLayer();
+
+    // The front face's edge, following its rounded corners: a line of light where it meets
+    // the top and left faces, a line of shade where it meets the bottom and right ones -
+    // each face's color inside that face's region, so the colors change along the mitres.
+    const D2D1_RECT_F inset = D2D1::RectF(front.left + 0.5f, front.top + 0.5f, front.right - 0.5f, front.bottom - 0.5f);
+    const auto less = [](float r) { return std::max(0.0f, r - 0.5f); };
+    const auto edgePath = RoundedRectPath(factory.get(), inset, less(rTopLeft), less(rTopRight),
+                                          less(rBottomRight), less(rBottomLeft));
+    if (line && edgePath)
+    {
+        for (const Face& face : faces)
         {
-            dc->DrawLine(D2D1::Point2F(L, o + T + 0.5f), D2D1::Point2F(w - R, o + T + 0.5f), line.get(), 1.0f);
-        }
-        if (L > 0.0f)
-        {
-            dc->DrawLine(D2D1::Point2F(L + 0.5f, o + T), D2D1::Point2F(L + 0.5f, h - B), line.get(), 1.0f);
-        }
-        if (B > 0.0f)
-        {
-            line->SetColor(edgeShade);
-            dc->DrawLine(D2D1::Point2F(L, h - B - 0.5f), D2D1::Point2F(w - R, h - B - 0.5f), line.get(), 1.0f);
-        }
-        if (R > 0.0f)
-        {
-            line->SetColor(edgeShade);
-            dc->DrawLine(D2D1::Point2F(w - R - 0.5f, o + T), D2D1::Point2F(w - R - 0.5f, h - B), line.get(), 1.0f);
-        }
-        D2D1_COLOR_F crease = edgeLight;
-        crease.a *= 0.5f;
-        if (T > 0.0f && L > 0.0f)
-        {
-            line->SetColor(crease);
-            dc->DrawLine(backTopLeft, frontTopLeft, line.get(), 1.0f);
-        }
-        if (B > 0.0f && L > 0.0f)
-        {
-            crease = edgeShade;
-            crease.a *= 0.5f;
-            line->SetColor(crease);
-            dc->DrawLine(backBottomLeft, frontBottomLeft, line.get(), 1.0f);
-        }
-        crease = edgeShade;
-        crease.a *= 0.5f;
-        line->SetColor(crease);
-        if (T > 0.0f && R > 0.0f)
-        {
-            dc->DrawLine(backTopRight, frontTopRight, line.get(), 1.0f);
-        }
-        if (B > 0.0f && R > 0.0f)
-        {
-            dc->DrawLine(backBottomRight, frontBottomRight, line.get(), 1.0f);
+            if (!face.on || !face.region)
+            {
+                continue;
+            }
+            dc->PushLayer(D2D1::LayerParameters1(whole, face.region.get()), nullptr);
+            line->SetColor(face.edge);
+            dc->DrawGeometry(edgePath.get(), line.get(), 1.0f);
+            dc->PopLayer();
         }
     }
     dc->PopLayer();

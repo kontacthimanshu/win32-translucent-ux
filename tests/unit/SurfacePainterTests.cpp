@@ -381,4 +381,40 @@ TEST(SurfacePainter, GlassColorIsBothLayersInOne)
     }
 }
 
+// The front face's corners are rounded where two faces meet: the pocket a rounded corner
+// leaves just inside the square corner belongs to the faces, not to the front face.
+TEST(SurfacePainter, SlabFrontFaceHasRoundedCornersWhereTwoFacesMeet)
+{
+    te::MainLayout layout = TestLayout();
+    layout.slab = {10.0f, 10.0f, 10.0f, 10.0f}; // front face (10, 10)-(190, 110)
+    Offscreen target;
+    ID2D1DeviceContext* dc = target.Begin();
+    dc->Clear(D2D1::ColorF(0, 0.0f));
+    te::SurfacePainter::PaintSlab(dc, D2D1::SizeF(kWidth, kHeight), layout,
+                                  Appearance(te::BackdropMode::Transparent, 0, 0));
+    target.End();
+
+    for (const auto [x, y] : {std::pair{11u, 11u}, std::pair{188u, 11u}, std::pair{11u, 108u}, std::pair{188u, 108u}})
+    {
+        EXPECT_GT(target.At(x, y).a, 0) << "the corner pocket at " << x << "," << y << " is face";
+    }
+    EXPECT_EQ(target.At(100, 13).a, 0) << "the front face along a straight edge";
+    EXPECT_EQ(target.At(100, 60).a, 0) << "the middle of the front face";
+}
+
+TEST(SurfacePainter, SlabCornerStaysSquareOnAnEdgeWithoutAFace)
+{
+    te::MainLayout layout = TestLayout();
+    layout.slab = {10.0f, 0.0f, 10.0f, 10.0f}; // no left face: front face (0, 10)-(190, 110)
+    Offscreen target;
+    ID2D1DeviceContext* dc = target.Begin();
+    dc->Clear(D2D1::ColorF(0, 0.0f));
+    te::SurfacePainter::PaintSlab(dc, D2D1::SizeF(kWidth, kHeight), layout,
+                                  Appearance(te::BackdropMode::Transparent, 0, 0));
+    target.End();
+
+    EXPECT_EQ(target.At(1, 12).a, 0) << "square, flush with the window's left edge";
+    EXPECT_GT(target.At(188, 11).a, 0) << "the top-right corner, between two faces, stays rounded";
+}
+
 } // namespace
