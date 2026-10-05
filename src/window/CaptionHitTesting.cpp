@@ -64,8 +64,10 @@ CaptionLayout CaptionHitTester::ComputeLayout(const CaptionMetrics& m)
     const DpiManager scale(m.dpi);
     CaptionLayout layout;
     // The slab's top face is part of the caption strip: it drags the window too.
-    layout.slabPx = std::max(0, m.slabPx);
-    layout.captionHeightPx = m.captionPx + m.framePx + m.paddedBorderPx + layout.slabPx;
+    layout.slabTopPx = std::max(0, m.slabTopPx);
+    layout.slabLeftPx = std::max(0, m.slabLeftPx);
+    layout.slabBottomPx = std::max(0, m.slabBottomPx);
+    layout.captionHeightPx = m.captionPx + m.framePx + m.paddedBorderPx + layout.slabTopPx;
     layout.resizeBandPx = m.maximized ? 0 : m.framePx + m.paddedBorderPx;
     // Maximized: the client area starts at the window's top edge, which is above
     // the screen by the frame thickness; visible content starts below it.
@@ -98,15 +100,18 @@ CaptionLayout CaptionHitTester::ComputeLayout(const CaptionMetrics& m)
 
     // Drag region: the caption strip below and right of the slab's faces, up to the
     // slab button (where the icon and title go).
-    layout.dragRegion = {std::min<LONG>(layout.slabPx, layout.slabButton.left), visibleTop + layout.slabPx,
-                         layout.slabButton.left, layout.captionHeightPx};
+    layout.dragRegion = {std::min<LONG>(layout.slabLeftPx, layout.slabButton.left),
+                         visibleTop + layout.slabTopPx, layout.slabButton.left, layout.captionHeightPx};
     return layout;
 }
 
 CaptionLayout CaptionHitTester::Compute(HWND hwnd, UINT dpi)
 {
     CaptionMetrics metrics = m_metrics->Query(hwnd, dpi);
-    metrics.slabPx = DpiManager(metrics.dpi).ToPx(static_cast<float>(m_slabPx));
+    const DpiManager scale(metrics.dpi);
+    metrics.slabTopPx = scale.ToPx(static_cast<float>(m_slabTopPx));
+    metrics.slabLeftPx = scale.ToPx(static_cast<float>(m_slabLeftPx));
+    metrics.slabBottomPx = scale.ToPx(static_cast<float>(m_slabBottomPx));
     return ComputeLayout(metrics);
 }
 

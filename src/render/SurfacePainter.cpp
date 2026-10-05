@@ -288,10 +288,12 @@ void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT
 void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& layout,
                const EffectiveAppearance& effective)
 {
-    const float t = layout.slab;
-    const float top = layout.slabTop;
-    if (t <= 0.0f || effective.reason == FallbackReason::HighContrast || client.width <= t ||
-        client.height <= top + 2.0f * t)
+    const float T = layout.slab.top;
+    const float L = layout.slab.left;
+    const float B = layout.slab.bottom;
+    const float o = layout.slabOrigin;
+    if ((T <= 0.0f && L <= 0.0f && B <= 0.0f) || effective.reason == FallbackReason::HighContrast ||
+        client.width <= L || client.height <= o + T + B)
     {
         return;
     }
@@ -308,18 +310,19 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
     wil::com_ptr<ID2D1Factory> factory;
     dc->GetFactory(factory.put());
 
-    // Back outline (the client edges) and front face; the faces join them, mitred at the
-    // corners. The right side has no face: the front face runs to that edge.
+    // Back outline (the client edges) and front face (inset by each face that is on); the
+    // faces join them, mitred where two meet. The right side has no face: the front face
+    // runs to that edge.
     const float w = client.width;
     const float h = client.height;
-    const D2D1_POINT_2F backTopLeft = D2D1::Point2F(0.0f, top);
-    const D2D1_POINT_2F backTopRight = D2D1::Point2F(w, top);
+    const D2D1_POINT_2F backTopLeft = D2D1::Point2F(0.0f, o);
+    const D2D1_POINT_2F backTopRight = D2D1::Point2F(w, o);
     const D2D1_POINT_2F backBottomLeft = D2D1::Point2F(0.0f, h);
     const D2D1_POINT_2F backBottomRight = D2D1::Point2F(w, h);
-    const D2D1_POINT_2F frontTopLeft = D2D1::Point2F(t, top + t);
-    const D2D1_POINT_2F frontTopRight = D2D1::Point2F(w, top + t);
-    const D2D1_POINT_2F frontBottomLeft = D2D1::Point2F(t, h - t);
-    const D2D1_POINT_2F frontBottomRight = D2D1::Point2F(w, h - t);
+    const D2D1_POINT_2F frontTopLeft = D2D1::Point2F(L, o + T);
+    const D2D1_POINT_2F frontTopRight = D2D1::Point2F(w, o + T);
+    const D2D1_POINT_2F frontBottomLeft = D2D1::Point2F(L, h - B);
+    const D2D1_POINT_2F frontBottomRight = D2D1::Point2F(w, h - B);
 
     // Each face: a gradient across its thickness, full strength at the front edge and
     // fading toward the back, so it reads as a surface turning away.
@@ -355,30 +358,54 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
     }
     dc->PushLayer(D2D1::LayerParameters1(whole, mask.get()), nullptr);
 
-    face({backTopLeft, backTopRight, frontTopRight, frontTopLeft}, topLight, D2D1::Point2F(0.0f, top),
-         D2D1::Point2F(0.0f, top + t));
-    face({backTopLeft, frontTopLeft, frontBottomLeft, backBottomLeft}, sideLight, D2D1::Point2F(0.0f, 0.0f),
-         D2D1::Point2F(t, 0.0f));
-    face({backBottomLeft, frontBottomLeft, frontBottomRight, backBottomRight}, bottomShade,
-         D2D1::Point2F(0.0f, h), D2D1::Point2F(0.0f, h - t));
+    if (T > 0.0f)
+    {
+        face({backTopLeft, backTopRight, frontTopRight, frontTopLeft}, topLight, D2D1::Point2F(0.0f, o),
+             D2D1::Point2F(0.0f, o + T));
+    }
+    if (L > 0.0f)
+    {
+        face({backTopLeft, frontTopLeft, frontBottomLeft, backBottomLeft}, sideLight, D2D1::Point2F(0.0f, 0.0f),
+             D2D1::Point2F(L, 0.0f));
+    }
+    if (B > 0.0f)
+    {
+        face({backBottomLeft, frontBottomLeft, frontBottomRight, backBottomRight}, bottomShade,
+             D2D1::Point2F(0.0f, h), D2D1::Point2F(0.0f, h - B));
+    }
 
     // The front face's edges: a line of light where it meets the top and left faces, a line
     // of shade where it meets the bottom one, and a fainter crease along each mitre.
     wil::com_ptr<ID2D1SolidColorBrush> line;
     if (SUCCEEDED_LOG(dc->CreateSolidColorBrush(edgeLight, line.put())))
     {
-        dc->DrawLine(D2D1::Point2F(t, top + t + 0.5f), D2D1::Point2F(w, top + t + 0.5f), line.get(), 1.0f);
-        dc->DrawLine(D2D1::Point2F(t + 0.5f, top + t), D2D1::Point2F(t + 0.5f, h - t), line.get(), 1.0f);
-        line->SetColor(edgeShade);
-        dc->DrawLine(D2D1::Point2F(t, h - t - 0.5f), D2D1::Point2F(w, h - t - 0.5f), line.get(), 1.0f);
+        if (T > 0.0f)
+        {
+            dc->DrawLine(D2D1::Point2F(L, o + T + 0.5f), D2D1::Point2F(w, o + T + 0.5f), line.get(), 1.0f);
+        }
+        if (L > 0.0f)
+        {
+            dc->DrawLine(D2D1::Point2F(L + 0.5f, o + T), D2D1::Point2F(L + 0.5f, h - B), line.get(), 1.0f);
+        }
+        if (B > 0.0f)
+        {
+            line->SetColor(edgeShade);
+            dc->DrawLine(D2D1::Point2F(L, h - B - 0.5f), D2D1::Point2F(w, h - B - 0.5f), line.get(), 1.0f);
+        }
         D2D1_COLOR_F crease = edgeLight;
         crease.a *= 0.5f;
-        line->SetColor(crease);
-        dc->DrawLine(backTopLeft, frontTopLeft, line.get(), 1.0f);
-        crease = edgeShade;
-        crease.a *= 0.5f;
-        line->SetColor(crease);
-        dc->DrawLine(backBottomLeft, frontBottomLeft, line.get(), 1.0f);
+        if (T > 0.0f && L > 0.0f)
+        {
+            line->SetColor(crease);
+            dc->DrawLine(backTopLeft, frontTopLeft, line.get(), 1.0f);
+        }
+        if (B > 0.0f && L > 0.0f)
+        {
+            crease = edgeShade;
+            crease.a *= 0.5f;
+            line->SetColor(crease);
+            dc->DrawLine(backBottomLeft, frontBottomLeft, line.get(), 1.0f);
+        }
     }
     dc->PopLayer();
 }

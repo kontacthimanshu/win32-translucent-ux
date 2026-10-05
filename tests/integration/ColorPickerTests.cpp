@@ -353,13 +353,13 @@ TEST_F(ColorPickerTest, ResetRestoresDefaultsButKeepsCustomColors)
     Click(IDC_RESET);
     ASSERT_FALSE(m_changes.empty());
     const te::AppearanceSettings& reset = m_changes.back();
-    EXPECT_EQ(reset.backdropMode, te::BackdropMode::Mica);
+    EXPECT_EQ(reset.backdropMode, te::BackdropMode::Transparent);
     EXPECT_TRUE(std::holds_alternative<std::monostate>(reset.tintColor));
-    EXPECT_NEAR(reset.tintOpacity, 0.20, 1e-9);
+    EXPECT_NEAR(reset.tintOpacity, te::kTransparentTintFloor, 1e-9);
     EXPECT_NEAR(reset.surfaceOpacity, 0.00, 1e-9);
     EXPECT_EQ(reset.customColors[3], (te::Rgb{1, 2, 3}));
     EXPECT_EQ(SendDlgItemMessageW(m_picker->Dialog(), IDC_SURFACE, TBM_GETPOS, 0, 0), 0);
-    EXPECT_EQ(IsDlgButtonChecked(m_picker->Dialog(), IDC_MODE_MICA), BST_CHECKED);
+    EXPECT_EQ(IsDlgButtonChecked(m_picker->Dialog(), IDC_MODE_MICA), BST_UNCHECKED) << "Transparent has no radio";
 }
 
 TEST_F(ColorPickerTest, EscapeHidesWithoutDestroyingOrChanging)

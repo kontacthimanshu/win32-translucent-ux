@@ -24,7 +24,11 @@ struct CaptionMetrics
     RECT captionButtons{};  // client coords, from DWMWA_CAPTION_BUTTON_BOUNDS
     SIZE clientSize{};      // client area size
     bool maximized = false;
-    int slabPx = 0; // the slab thickness at `dpi` (AppearanceSettings::slabThicknessPx scaled)
+    // The slab faces' thicknesses at `dpi` (AppearanceSettings::slabThicknessPx scaled; 0 for
+    // a face that is off).
+    int slabTopPx = 0;
+    int slabLeftPx = 0;
+    int slabBottomPx = 0;
 };
 
 // Supplies CaptionMetrics for a window. Replaced by a fake in tests.
@@ -55,18 +59,22 @@ class CaptionHitTester final : public ICaptionHitTester
     static LRESULT ClassifyPoint(POINT clientPt, SIZE clientSize, const CaptionLayout& layout);
 
     CaptionLayout Compute(HWND hwnd, UINT dpi) override;
-    // The slab thickness in pixels at 100% scale (AppearanceSettings::slabThicknessPx);
-    // Compute scales it to the window's DPI for the metrics.
-    void SetSlabPx(int px) noexcept
+    // The slab faces' thicknesses in pixels at 100% scale (0 = off); Compute scales them to
+    // the window's DPI for the metrics.
+    void SetSlabPx(int topPx, int leftPx, int bottomPx) noexcept
     {
-        m_slabPx = px > 0 ? px : 0;
+        m_slabTopPx = topPx > 0 ? topPx : 0;
+        m_slabLeftPx = leftPx > 0 ? leftPx : 0;
+        m_slabBottomPx = bottomPx > 0 ? bottomPx : 0;
     }
     bool HitTest(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, const CaptionLayout& layout,
                  LRESULT* result) override;
 
   private:
     std::unique_ptr<ICaptionMetricsProvider> m_metrics;
-    int m_slabPx = 0;
+    int m_slabTopPx = 0;
+    int m_slabLeftPx = 0;
+    int m_slabBottomPx = 0;
 };
 
 } // namespace te

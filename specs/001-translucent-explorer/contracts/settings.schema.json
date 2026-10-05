@@ -15,8 +15,8 @@
       "additionalProperties": false,
       "properties": {
         "backdropMode": {
-          "enum": ["Acrylic", "Mica", "Solid"],
-          "default": "Mica",
+          "enum": ["Acrylic", "Mica", "Solid", "Transparent"],
+          "default": "Transparent",
           "description": "Requested mode. Effective mode may differ (high contrast, transparency effects off, unsupported build) and is never persisted."
         },
         "tintColor": {
@@ -30,7 +30,7 @@
           "minimum": 0.0,
           "maximum": 0.8,
           "multipleOf": 0.05,
-          "default": 0.2,
+          "default": 0.45,
           "description": "Strength of the app-drawn tint overlay in Acrylic/Mica. Ignored (but retained) in Solid. Not a DWM material opacity."
         },
         "surfaceOpacity": {
@@ -48,10 +48,20 @@
           "default": 12,
           "description": "Thickness in pixels at 100% scale (scaled with the monitor DPI) of the slab faces drawn along the window's top, left and bottom edges; 0 draws a flat pane. Set from the slab popup; not affected by the appearance popup's Reset."
         },
-        "slabEnabled": {
+        "slabTop": {
           "type": "boolean",
           "default": true,
-          "description": "Whether the slab faces are drawn; false draws a flat pane and keeps slabThicknessPx. Set from the slab popup; not affected by the appearance popup's Reset."
+          "description": "Whether the slab face along the top edge is drawn. Set from the slab popup; not affected by the appearance popup's Reset."
+        },
+        "slabLeft": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the slab face along the left edge is drawn. Set from the slab popup; not affected by the appearance popup's Reset."
+        },
+        "slabBottom": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the slab face along the bottom edge is drawn. With all three faces off the window is a flat pane and slabThicknessPx is kept. Set from the slab popup; not affected by the appearance popup's Reset."
         },
         "customColors": {
           "type": "array",

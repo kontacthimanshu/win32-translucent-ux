@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 namespace te
@@ -180,15 +181,20 @@ AppearanceSettings ParseAppearance(const json& appearance, std::vector<std::wstr
         }
     }
 
-    if (const auto it = appearance.find("slabEnabled"); it != appearance.end())
+    for (const auto& [key, name, target] :
+         {std::tuple{"slabTop", L"slabTop", &settings.slabTop}, std::tuple{"slabLeft", L"slabLeft", &settings.slabLeft},
+          std::tuple{"slabBottom", L"slabBottom", &settings.slabBottom}})
     {
-        if (it->is_boolean())
+        if (const auto it = appearance.find(key); it != appearance.end())
         {
-            settings.slabEnabled = it->get<bool>();
-        }
-        else
-        {
-            defaulted.emplace_back(L"slabEnabled");
+            if (it->is_boolean())
+            {
+                *target = it->get<bool>();
+            }
+            else
+            {
+                defaulted.emplace_back(name);
+            }
         }
     }
 
@@ -233,7 +239,9 @@ json ToJson(const AppearanceSettings& s)
     appearance["tintOpacity"] = SnapOpacity(s.tintOpacity, kTintMin, kTintMax);
     appearance["surfaceOpacity"] = SnapOpacity(s.surfaceOpacity, kSurfaceMin, kSurfaceMax);
     appearance["slabThicknessPx"] = std::clamp(s.slabThicknessPx, kSlabMinPx, kSlabMaxPx);
-    appearance["slabEnabled"] = s.slabEnabled;
+    appearance["slabTop"] = s.slabTop;
+    appearance["slabLeft"] = s.slabLeft;
+    appearance["slabBottom"] = s.slabBottom;
     appearance["customColors"] = std::move(colors);
 
     json root;
@@ -399,7 +407,9 @@ AppearanceSettings SettingsManager::Reset(const AppearanceSettings& current)
     AppearanceSettings reset = Defaults();
     reset.customColors = current.customColors; // Reset keeps the custom palette (R-11)
     reset.slabThicknessPx = current.slabThicknessPx; // set from its own popup, not the color one
-    reset.slabEnabled = current.slabEnabled;
+    reset.slabTop = current.slabTop;
+    reset.slabLeft = current.slabLeft;
+    reset.slabBottom = current.slabBottom;
     return reset;
 }
 

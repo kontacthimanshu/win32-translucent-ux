@@ -16,9 +16,11 @@ namespace te
 // the research R-11 defaults that ISettingsStore::Defaults() returns.
 struct AppearanceSettings
 {
-    BackdropMode backdropMode = BackdropMode::Mica;
+    // Clear glass, as the appearance popup's Transparent swatch gives it: the tint at
+    // kTransparentTintFloor (Palette.h), so the color still shows over a busy desktop.
+    BackdropMode backdropMode = BackdropMode::Transparent;
     std::variant<std::monostate /*accent*/, Rgb> tintColor; // default: follow the accent
-    double tintOpacity = 0.20;                              // 0.00–0.80, tint layer strength
+    double tintOpacity = 0.45;                              // 0.00–0.80, tint layer strength
     double surfaceOpacity = 0.0; // 0.00–0.90, surface layer opacity, independent of tint
     std::array<Rgb, 16> customColors = [] {
         std::array<Rgb, 16> colors{};
@@ -29,9 +31,11 @@ struct AppearanceSettings
     // left and bottom edges, in pixels at 100% scale (scaled with the monitor's DPI like the
     // rest of the window; kSlabMinPx-kSlabMaxPx; 0 = a flat pane).
     int slabThicknessPx = 12;
-    // Whether the slab's faces are drawn at all; off draws a flat pane and keeps
-    // slabThicknessPx for when they are turned on again.
-    bool slabEnabled = true;
+    // Which of the slab's faces are drawn; with all three off the window is a flat pane.
+    // slabThicknessPx is kept for when one is turned on again.
+    bool slabTop = true;
+    bool slabLeft = true;
+    bool slabBottom = true;
 };
 
 inline constexpr int kSlabMinPx = 0;

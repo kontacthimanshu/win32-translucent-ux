@@ -46,7 +46,10 @@
 #define IDC_SLAB_TRACK     2101
 #define IDC_SLAB_VALUE     2102
 #define IDC_SLAB_DEFAULT   2103
-#define IDC_SLAB_ENABLED   2104
+#define IDC_SLAB_TOP       2104
+#define IDC_SLAB_LEFT      2105
+#define IDC_SLAB_BOTTOM    2106
+#define IDC_SLAB_EDGES     2107
 
 // Popup strings (STRINGTABLE)
 #define IDS_REASON_REQUIRES_22621   1110

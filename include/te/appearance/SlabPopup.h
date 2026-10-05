@@ -1,10 +1,11 @@
 #pragma once
 
 // The slab popup: a modeless IDD_SLAB dialog under the title bar's slab button, with a
-// check box that turns the window's slab faces on or off (AppearanceSettings::slabEnabled),
-// a trackbar for their thickness in pixels (AppearanceSettings::slabThicknessPx,
-// kSlabMinPx-kSlabMaxPx), its value, and Default. The thickness controls are disabled while
-// the faces are off; the thickness is kept.
+// check box for each of the window's slab faces - Top, Left, Bottom
+// (AppearanceSettings::slabTop / slabLeft / slabBottom) - a trackbar for their thickness in
+// pixels (AppearanceSettings::slabThicknessPx, kSlabMinPx-kSlabMaxPx), its value, and
+// Default. The thickness controls are disabled while every face is off; the thickness is
+// kept.
 // It opens and closes like the appearance popup (ColorPicker): the button toggles it,
 // Escape or a click elsewhere dismisses it. Every change applies at once through the
 // changed callback; the owner persists it.
@@ -12,6 +13,8 @@
 #include <windows.h>
 
 #include <functional>
+
+#include <te/appearance/AppearanceSettings.h>
 
 namespace te
 {
@@ -26,11 +29,12 @@ class SlabPopup
     SlabPopup(const SlabPopup&) = delete;
     SlabPopup& operator=(const SlabPopup&) = delete;
 
-    void Show(HWND owner, const RECT& anchorScreen, bool enabled, int thicknessPx);
+    // The slab fields of `settings` (slabTop, slabLeft, slabBottom, slabThicknessPx).
+    void Show(HWND owner, const RECT& anchorScreen, const AppearanceSettings& settings);
     void Hide();
     [[nodiscard]] bool IsOpen() const;
-    // Called with the faces' state and thickness for each change.
-    void SetChangedCallback(std::function<void(bool enabled, int thicknessPx)> callback);
+    // Called for each change with the slab fields set (the other fields as last shown).
+    void SetChangedCallback(std::function<void(const AppearanceSettings&)> callback);
     // The slab button moved (a DPI change): an open popup moves with it.
     void Reposition(const RECT& anchorScreen);
 
@@ -52,18 +56,17 @@ class SlabPopup
     void Position(HWND owner, const RECT& anchorScreen);
     void SyncControls();
     void SetThickness(int px);
-    void SetEnabled(bool enabled);
+    void OnEdgeClicked(int id);
     void Changed();
 
     HINSTANCE m_instance;
     std::function<void(HWND)> m_registerDialog;
-    std::function<void(bool, int)> m_changed;
+    std::function<void(const AppearanceSettings&)> m_changed;
 
     HWND m_dialog = nullptr;
     HWND m_owner = nullptr;
     RECT m_anchor{};
-    int m_thickness = 0;
-    bool m_enabled = true;
+    AppearanceSettings m_settings; // the slab fields are what the popup shows
     bool m_syncing = false;
     DWORD m_dismissedAt = 0;
     bool m_swallowing = false;

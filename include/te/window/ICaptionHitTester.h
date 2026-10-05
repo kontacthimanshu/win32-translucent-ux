@@ -16,7 +16,11 @@ struct CaptionLayout
     RECT dragRegion{};     // caption strip minus the title-bar buttons and caption buttons
     int resizeBandPx = 0;  // top resize band height; 0 when maximized
     int contentTopPx = 0;  // rows above the screen when maximized (frame + padding); 0 otherwise
-    int slabPx = 0;        // slab face thickness: the caption grows by it, the title moves in by it
+    // Slab face thicknesses (0 = that face is off): the caption grows by the top one, the
+    // title moves in by the left one; the bottom one only counts toward the minimum size.
+    int slabTopPx = 0;
+    int slabLeftPx = 0;
+    int slabBottomPx = 0;
 };
 
 class ICaptionHitTester

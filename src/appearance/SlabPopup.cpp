@@ -1,7 +1,6 @@
 #include <te/appearance/SlabPopup.h>
 
 #include <te/appearance/AppearanceIds.h>
-#include <te/appearance/AppearanceSettings.h>
 
 #include <commctrl.h>
 
@@ -39,7 +38,7 @@ SlabPopup::~SlabPopup()
     }
 }
 
-void SlabPopup::SetChangedCallback(std::function<void(bool, int)> callback)
+void SlabPopup::SetChangedCallback(std::function<void(const AppearanceSettings&)> callback)
 {
     m_changed = std::move(callback);
 }
@@ -57,10 +56,10 @@ bool SlabPopup::EnsureDialog(HWND owner)
     return m_dialog != nullptr;
 }
 
-void SlabPopup::Show(HWND owner, const RECT& anchorScreen, bool enabled, int thicknessPx)
+void SlabPopup::Show(HWND owner, const RECT& anchorScreen, const AppearanceSettings& settings)
 {
-    m_enabled = enabled;
-    m_thickness = std::clamp(thicknessPx, kSlabMinPx, kSlabMaxPx);
+    m_settings = settings;
+    m_settings.slabThicknessPx = std::clamp(settings.slabThicknessPx, kSlabMinPx, kSlabMaxPx);
     if (!EnsureDialog(owner))
     {
         return;
@@ -71,7 +70,7 @@ void SlabPopup::Show(HWND owner, const RECT& anchorScreen, bool enabled, int thi
     m_dismissedAt = 0;
     ShowWindow(m_dialog, SW_SHOW);
     SetForegroundWindow(m_dialog);
-    SendMessageW(m_dialog, WM_NEXTDLGCTL, reinterpret_cast<WPARAM>(GetDlgItem(m_dialog, IDC_SLAB_ENABLED)), TRUE);
+    SendMessageW(m_dialog, WM_NEXTDLGCTL, reinterpret_cast<WPARAM>(GetDlgItem(m_dialog, IDC_SLAB_TOP)), TRUE);
     if (m_registerDialog)
     {
         m_registerDialog(m_dialog);
@@ -158,24 +157,31 @@ void SlabPopup::Position(HWND owner, const RECT& anchorScreen)
 void SlabPopup::SyncControls()
 {
     m_syncing = true;
-    CheckDlgButton(m_dialog, IDC_SLAB_ENABLED, m_enabled ? BST_CHECKED : BST_UNCHECKED);
-    SendDlgItemMessageW(m_dialog, IDC_SLAB_TRACK, TBM_SETPOS, TRUE, m_thickness);
-    const std::wstring value = m_thickness == 0 ? L"0 px (flat)" : std::to_wstring(m_thickness) + L" px";
+    CheckDlgButton(m_dialog, IDC_SLAB_TOP, m_settings.slabTop ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(m_dialog, IDC_SLAB_LEFT, m_settings.slabLeft ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(m_dialog, IDC_SLAB_BOTTOM, m_settings.slabBottom ? BST_CHECKED : BST_UNCHECKED);
+    const int thickness = m_settings.slabThicknessPx;
+    SendDlgItemMessageW(m_dialog, IDC_SLAB_TRACK, TBM_SETPOS, TRUE, thickness);
+    const std::wstring value = thickness == 0 ? L"0 px (flat)" : std::to_wstring(thickness) + L" px";
     SetDlgItemTextW(m_dialog, IDC_SLAB_VALUE, value.c_str());
+    const bool anyEdge = m_settings.slabTop || m_settings.slabLeft || m_settings.slabBottom;
     for (const int id : {IDC_SLAB_LABEL, IDC_SLAB_VALUE, IDC_SLAB_TRACK, IDC_SLAB_DEFAULT})
     {
-        EnableWindow(GetDlgItem(m_dialog, id), m_enabled);
+        EnableWindow(GetDlgItem(m_dialog, id), anyEdge);
     }
     m_syncing = false;
 }
 
-void SlabPopup::SetEnabled(bool enabled)
+void SlabPopup::OnEdgeClicked(int id)
 {
-    if (enabled == m_enabled)
+    const bool checked = IsDlgButtonChecked(m_dialog, id) == BST_CHECKED;
+    bool& edge = id == IDC_SLAB_TOP ? m_settings.slabTop : id == IDC_SLAB_LEFT ? m_settings.slabLeft
+                                                                                : m_settings.slabBottom;
+    if (checked == edge)
     {
         return;
     }
-    m_enabled = enabled;
+    edge = checked;
     SyncControls();
     Changed();
 }
@@ -184,18 +190,18 @@ void SlabPopup::Changed()
 {
     if (m_changed)
     {
-        m_changed(m_enabled, m_thickness);
+        m_changed(m_settings);
     }
 }
 
 void SlabPopup::SetThickness(int px)
 {
     px = std::clamp(px, kSlabMinPx, kSlabMaxPx);
-    if (px == m_thickness)
+    if (px == m_settings.slabThicknessPx)
     {
         return;
     }
-    m_thickness = px;
+    m_settings.slabThicknessPx = px;
     SyncControls();
     Changed();
 }
@@ -231,10 +237,12 @@ INT_PTR SlabPopup::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam)
         {
             switch (LOWORD(wParam))
             {
-            case IDC_SLAB_ENABLED:
+            case IDC_SLAB_TOP:
+            case IDC_SLAB_LEFT:
+            case IDC_SLAB_BOTTOM:
                 if (!m_syncing)
                 {
-                    SetEnabled(IsDlgButtonChecked(m_dialog, IDC_SLAB_ENABLED) == BST_CHECKED);
+                    OnEdgeClicked(LOWORD(wParam));
                 }
                 break;
             case IDC_SLAB_DEFAULT:

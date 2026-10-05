@@ -47,8 +47,10 @@ TEST(MainLayoutSlab, ThePanesMakeRoomForTheLeftAndBottomFaces)
     // 150 %: 18 px of slab is 12 DIPs; the caption height already includes it.
     const SIZE client{1800, 1200};
     const te::MainLayout flat = te::MainLayout::Compute(client, 144, 45);
-    const te::MainLayout slab = te::MainLayout::Compute(client, 144, 45 + 18, 1.0f, 18);
-    EXPECT_FLOAT_EQ(slab.slab, 12.0f);
+    const te::MainLayout slab = te::MainLayout::Compute(client, 144, 45 + 18, 1.0f, {18, 18, 18});
+    EXPECT_FLOAT_EQ(slab.slab.top, 12.0f);
+    EXPECT_FLOAT_EQ(slab.slab.left, 12.0f);
+    EXPECT_FLOAT_EQ(slab.slab.bottom, 12.0f);
     EXPECT_FLOAT_EQ(slab.caption.left, 0.0f);
     EXPECT_FLOAT_EQ(slab.caption.right, flat.caption.right);
     EXPECT_FLOAT_EQ(slab.toolbar.left, 12.0f);
@@ -66,12 +68,36 @@ TEST(MainLayoutSlab, ThePanesMakeRoomForTheLeftAndBottomFaces)
 
 TEST(MainLayoutSlab, NoSlabLeavesTheLayoutAsBefore)
 {
-    const te::MainLayout layout = te::MainLayout::Compute({1200, 800}, 96, 31, 1.0f, 0);
-    EXPECT_FLOAT_EQ(layout.slab, 0.0f);
+    const te::MainLayout layout = te::MainLayout::Compute({1200, 800}, 96, 31, 1.0f, {});
+    EXPECT_FLOAT_EQ(layout.slab.left, 0.0f);
+    EXPECT_FLOAT_EQ(layout.slab.bottom, 0.0f);
     EXPECT_FLOAT_EQ(layout.toolbar.left, 0.0f);
     EXPECT_FLOAT_EQ(layout.statusBar.bottom, 800.0f);
     EXPECT_FLOAT_EQ(Height(layout.slabLeft), 0.0f);
     EXPECT_FLOAT_EQ(Height(layout.slabBottom), 0.0f);
+}
+
+TEST(MainLayoutSlab, EachFaceMovesOnlyItsOwnEdge)
+{
+    const SIZE client{1200, 800};
+    const te::MainLayout leftOnly = te::MainLayout::Compute(client, 96, 31, 1.0f, {0, 10, 0});
+    EXPECT_FLOAT_EQ(leftOnly.toolbar.left, 10.0f);
+    EXPECT_FLOAT_EQ(leftOnly.statusBar.bottom, 800.0f);
+    EXPECT_FLOAT_EQ(Height(leftOnly.slabBottom), 0.0f);
+    EXPECT_FLOAT_EQ(leftOnly.slabLeft.right, 10.0f);
+
+    const te::MainLayout bottomOnly = te::MainLayout::Compute(client, 96, 31, 1.0f, {0, 0, 10});
+    EXPECT_FLOAT_EQ(bottomOnly.toolbar.left, 0.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.statusBar.bottom, 790.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.slabBottom.left, 0.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.slabBottom.top, 790.0f);
+    EXPECT_FLOAT_EQ(bottomOnly.slabLeft.right - bottomOnly.slabLeft.left, 0.0f);
+
+    const te::MainLayout topOnly = te::MainLayout::Compute(client, 96, 31 + 10, 1.0f, {10, 0, 0});
+    EXPECT_FLOAT_EQ(topOnly.slab.top, 10.0f);
+    EXPECT_FLOAT_EQ(topOnly.toolbar.top, 41.0f);
+    EXPECT_FLOAT_EQ(topOnly.toolbar.left, 0.0f);
+    EXPECT_FLOAT_EQ(topOnly.statusBar.bottom, 800.0f);
 }
 
 } // namespace

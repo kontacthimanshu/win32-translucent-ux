@@ -111,7 +111,8 @@ void MainWindow::ApplyUserSettings(const AppearanceSettings& settings)
         m_modeOverridden = false;                   // the user chose a mode: save it
     }
     const bool slabChanged = settings.slabThicknessPx != m_settings.slabThicknessPx ||
-                             settings.slabEnabled != m_settings.slabEnabled;
+                             settings.slabTop != m_settings.slabTop || settings.slabLeft != m_settings.slabLeft ||
+                             settings.slabBottom != m_settings.slabBottom;
     m_settings = settings;
     if (slabChanged && m_hwnd)
     {
@@ -606,10 +607,12 @@ void MainWindow::OnCreate()
     });
     m_titleBar.SetPickerCallback([this] { TogglePicker(); });
     m_slabPopup = std::make_unique<SlabPopup>(m_options.instance, m_options.registerModelessDialog);
-    m_slabPopup->SetChangedCallback([this](bool enabled, int thicknessPx) {
-        AppearanceSettings settings = m_settings;
-        settings.slabEnabled = enabled;
-        settings.slabThicknessPx = thicknessPx;
+    m_slabPopup->SetChangedCallback([this](const AppearanceSettings& slab) {
+        AppearanceSettings settings = m_settings; // only the slab fields come from the popup
+        settings.slabTop = slab.slabTop;
+        settings.slabLeft = slab.slabLeft;
+        settings.slabBottom = slab.slabBottom;
+        settings.slabThicknessPx = slab.slabThicknessPx;
         ApplyUserSettings(settings);
     });
     m_titleBar.SetSlabCallback([this] { ToggleSlabPopup(); });
@@ -741,8 +744,7 @@ void MainWindow::ToggleSlabPopup()
     {
         m_picker->Hide(); // one title-bar popup at a time
     }
-    m_slabPopup->Show(m_hwnd, m_titleBar.SlabScreenRect(m_hwnd), m_settings.slabEnabled,
-                      m_settings.slabThicknessPx);
+    m_slabPopup->Show(m_hwnd, m_titleBar.SlabScreenRect(m_hwnd), m_settings);
 }
 
 void MainWindow::RefreshAppearance(bool reprobe)
@@ -920,15 +922,18 @@ void MainWindow::OnDpiChanged(UINT dpi, const RECT& suggested)
 
 void MainWindow::UpdateLayout()
 {
-    m_hitTester.SetSlabPx(m_settings.slabEnabled ? m_settings.slabThicknessPx : 0);
+    const int slab = m_settings.slabThicknessPx;
+    m_hitTester.SetSlabPx(m_settings.slabTop ? slab : 0, m_settings.slabLeft ? slab : 0,
+                          m_settings.slabBottom ? slab : 0);
     m_titleBar.UpdateLayout(m_hwnd);
     RECT client{};
     GetClientRect(m_hwnd, &client);
     const CaptionLayout& caption = m_titleBar.Layout();
     m_layout = MainLayout::Compute(SIZE{client.right, client.bottom}, m_dpi.Dpi(), caption.captionHeightPx,
-                                   m_text ? m_text->TextScale() : 1.0f, caption.slabPx);
+                                   m_text ? m_text->TextScale() : 1.0f,
+                                   {caption.slabTopPx, caption.slabLeftPx, caption.slabBottomPx});
     m_layout.captionButtons = MainLayout::ToDip(caption.captionButtons, m_dpi.Dpi());
-    m_layout.slabTop = MainLayout::ToDip(RECT{0, caption.contentTopPx, 0, 0}, m_dpi.Dpi()).top;
+    m_layout.slabOrigin = MainLayout::ToDip(RECT{0, caption.contentTopPx, 0, 0}, m_dpi.Dpi()).top;
     m_statusBar.SetBounds(m_layout.statusBar);
 
     // The toolbar row: navigation buttons, the address bar, then the filter box at the right

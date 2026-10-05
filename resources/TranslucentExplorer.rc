@@ -84,16 +84,19 @@ BEGIN
 END
 
 // The slab popup (SlabPopup): the thickness of the window's slab faces, in pixels.
-IDD_SLAB DIALOGEX 0, 0, 180, 74
+IDD_SLAB DIALOGEX 0, 0, 180, 88
 STYLE DS_SHELLFONT | WS_POPUP | WS_BORDER
 EXSTYLE WS_EX_CONTROLPARENT
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    AUTOCHECKBOX    "Show slab edges", IDC_SLAB_ENABLED, 7, 6, 166, 10, WS_TABSTOP
-    LTEXT           "Slab thickness", IDC_SLAB_LABEL, 7, 22, 110, 9
-    RTEXT           "", IDC_SLAB_VALUE, 117, 22, 56, 9
-    CONTROL         "", IDC_SLAB_TRACK, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 4, 33, 172, 16
-    PUSHBUTTON      "Default", IDC_SLAB_DEFAULT, 113, 54, 60, 14, WS_TABSTOP
+    GROUPBOX        "Slab edges", IDC_SLAB_EDGES, 7, 4, 166, 28
+    AUTOCHECKBOX    "Top", IDC_SLAB_TOP, 14, 16, 46, 10, WS_GROUP | WS_TABSTOP
+    AUTOCHECKBOX    "Left", IDC_SLAB_LEFT, 64, 16, 46, 10, WS_TABSTOP
+    AUTOCHECKBOX    "Bottom", IDC_SLAB_BOTTOM, 114, 16, 52, 10, WS_TABSTOP
+    LTEXT           "Slab thickness", IDC_SLAB_LABEL, 7, 37, 110, 9, WS_GROUP
+    RTEXT           "", IDC_SLAB_VALUE, 117, 37, 56, 9
+    CONTROL         "", IDC_SLAB_TRACK, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 4, 48, 172, 16
+    PUSHBUTTON      "Default", IDC_SLAB_DEFAULT, 113, 68, 60, 14, WS_TABSTOP
 END
 
 // ---------------------------------------------------------------------------

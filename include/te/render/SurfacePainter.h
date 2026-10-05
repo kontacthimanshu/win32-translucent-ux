@@ -54,12 +54,12 @@ inline constexpr float kCornerRadiusDip = 8.0f; // DWMWCP_ROUND
 void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT_F& captionButtons,
                      bool maximized, const EffectiveAppearance& effective);
 
-// The window as a slab of glass layout.slab DIPs thick, seen along three of its sides: a
-// face along the top (lit), the left (half lit) and the bottom (in shade), mitred at the
-// corners and meeting the front face (the panes) at a crisp edge. The faces are the glass
-// itself (PaintSurfaces fills layout.slabLeft and layout.slabBottom); this draws only their
-// shading, after the content. The caption buttons are left untouched. Nothing when
-// layout.slab is 0 or in high contrast.
+// The window as a slab of glass, seen along up to three of its sides (layout.slab): a face
+// along the top (lit), the left (half lit) and the bottom (in shade), each drawn only when
+// on, mitred where two meet and meeting the front face (the panes) at a crisp edge. The
+// faces are the glass itself (PaintSurfaces fills layout.slabLeft and layout.slabBottom);
+// this draws only their shading, after the content. The caption buttons are left untouched.
+// Nothing when every face is off or in high contrast.
 void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& layout,
                const EffectiveAppearance& effective);
 

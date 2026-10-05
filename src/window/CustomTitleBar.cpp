@@ -167,14 +167,14 @@ void CustomTitleBar::ApplyMinimumSize(HWND hwnd, MINMAXINFO* info) const
     // (window size minus client size) are added on top.
     const LONG buttonsWidth = m_layout.captionButtons.right - m_layout.captionButtons.left;
     const LONG pickerWidth = (m_layout.picker.right - m_layout.picker.left) +
-                             (m_layout.slabButton.right - m_layout.slabButton.left) + m_layout.slabPx;
+                             (m_layout.slabButton.right - m_layout.slabButton.left) + m_layout.slabLeftPx;
     const LONG gap = m_layout.captionButtons.left - m_layout.picker.right;
     const LONG minClientWidth = std::max<LONG>(buttonsWidth, 0) + std::max<LONG>(pickerWidth, 0) +
                                 std::max<LONG>(gap, 0) + m_dpi.ToPx(kMinTitleWidthDip);
     const LONG minClientHeight =
         m_layout.captionHeightPx +
         m_dpi.ToPx((kToolbarHeightDip + kRowHeightDip * kMinVisibleRows + kStatusBarHeightDip) * m_textScale) +
-        m_layout.slabPx; // the bottom face (the top one is in captionHeightPx)
+        m_layout.slabBottomPx; // the bottom face (the top one is in captionHeightPx)
 
     RECT window{};
     RECT client{};
@@ -575,7 +575,7 @@ void CustomTitleBar::Render(ID2D1DeviceContext* dc, IDWriteTextFormat* titleForm
     const float bottom = ToDip(m_layout.captionHeightPx);
     const float regionRight = ToDip(m_layout.dragRegion.right);
     const float middle = (top + bottom) / 2.0f;
-    const float iconLeft = ToDip(m_layout.slabPx) + kIconMarginDip;
+    const float iconLeft = ToDip(m_layout.slabLeftPx) + kIconMarginDip;
 
     float textLeft = iconLeft;
     if (SUCCEEDED(EnsureIconBitmap(dc)) && m_iconBitmap)
