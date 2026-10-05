@@ -350,26 +350,31 @@ TEST_F(SettingsTest, ResetKeepsSlabThickness)
     current.slabThicknessPx = 30;
     current.slabTop = false;
     current.slabBottom = false;
+    current.slabRight = false;
     const te::AppearanceSettings reset = te::SettingsManager::Reset(current);
     EXPECT_EQ(reset.slabThicknessPx, 30);
     EXPECT_FALSE(reset.slabTop);
     EXPECT_TRUE(reset.slabLeft);
     EXPECT_FALSE(reset.slabBottom);
+    EXPECT_FALSE(reset.slabRight);
 }
 
 TEST_F(SettingsTest, SlabEdgesRoundTripOnTheirOwn)
 {
     const te::AppearanceSettings defaults;
-    EXPECT_TRUE(defaults.slabTop && defaults.slabLeft && defaults.slabBottom) << "all on by default";
+    EXPECT_TRUE(defaults.slabTop && defaults.slabLeft && defaults.slabBottom && defaults.slabRight)
+        << "all on by default";
     te::AppearanceSettings saved;
     saved.slabTop = false;
     saved.slabBottom = false;
+    saved.slabRight = false;
     saved.slabThicknessPx = 24;
     ASSERT_HRESULT_SUCCEEDED(te::SettingsManager(m_dir).Save(saved));
     const te::AppearanceSettings loaded = Load().settings;
     EXPECT_FALSE(loaded.slabTop);
     EXPECT_TRUE(loaded.slabLeft);
     EXPECT_FALSE(loaded.slabBottom);
+    EXPECT_FALSE(loaded.slabRight);
     EXPECT_EQ(loaded.slabThicknessPx, 24);
 
     WriteAppearance(R"("slabTop": "yes", "slabLeft": false, "slabThicknessPx": 8)");

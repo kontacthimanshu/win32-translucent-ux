@@ -61,7 +61,12 @@
         "slabBottom": {
           "type": "boolean",
           "default": true,
-          "description": "Whether the slab face along the bottom edge is drawn. With all three faces off the window is a flat pane and slabThicknessPx is kept. Set from the slab popup; not affected by the appearance popup's Reset."
+          "description": "Whether the slab face along the bottom edge is drawn. Set from the slab popup; not affected by the appearance popup's Reset."
+        },
+        "slabRight": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the slab face along the right edge is drawn. With all four faces off the window is a flat pane and slabThicknessPx is kept. Set from the slab popup; not affected by the appearance popup's Reset."
         },
         "customColors": {
           "type": "array",

@@ -27,7 +27,7 @@ bool IsEmpty(const D2D1_RECT_F& r)
 void FillRegions(ID2D1DeviceContext* dc, const MainLayout& layout, ID2D1Brush* brush)
 {
     for (const D2D1_RECT_F& region : {layout.caption, layout.toolbar, layout.navigationPane, layout.fileList,
-                                      layout.statusBar, layout.slabLeft, layout.slabBottom})
+                                      layout.statusBar, layout.slabLeft, layout.slabBottom, layout.slabRight})
     {
         if (!IsEmpty(region))
         {
@@ -300,19 +300,21 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
     const float T = layout.slab.top;
     const float L = layout.slab.left;
     const float B = layout.slab.bottom;
+    const float R = layout.slab.right;
     const float o = layout.slabOrigin;
-    if ((T <= 0.0f && L <= 0.0f && B <= 0.0f) || effective.reason == FallbackReason::HighContrast ||
-        client.width <= L || client.height <= o + T + B)
+    if ((T <= 0.0f && L <= 0.0f && B <= 0.0f && R <= 0.0f) || effective.reason == FallbackReason::HighContrast ||
+        client.width <= L + R || client.height <= o + T + B)
     {
         return;
     }
     // Light from the top left, as for the frame bevel: the top face catches it, the left one
-    // half of it, the bottom one is in shade. Over a dark base light needs less weight to
-    // show and shade more.
+    // half of it, the right one is half in shade and the bottom one in shade. Over a dark
+    // base light needs less weight to show and shade more.
     const bool dark = Contrast::RelativeLuminance(effective.base) < 0.5;
     const D2D1_COLOR_F topLight = D2D1::ColorF(1.0f, 1.0f, 1.0f, dark ? 0.16f : 0.50f);
     const D2D1_COLOR_F sideLight = dark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.07f) : D2D1::ColorF(0, 0.05f);
     const D2D1_COLOR_F bottomShade = D2D1::ColorF(0, dark ? 0.40f : 0.20f);
+    const D2D1_COLOR_F rightShade = D2D1::ColorF(0, dark ? 0.28f : 0.12f);
     const D2D1_COLOR_F edgeLight = D2D1::ColorF(1.0f, 1.0f, 1.0f, dark ? 0.30f : 0.85f);
     const D2D1_COLOR_F edgeShade = D2D1::ColorF(0, dark ? 0.60f : 0.30f);
 
@@ -320,8 +322,7 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
     dc->GetFactory(factory.put());
 
     // Back outline (the client edges) and front face (inset by each face that is on); the
-    // faces join them, mitred where two meet. The right side has no face: the front face
-    // runs to that edge.
+    // faces join them, mitred where two meet.
     const float w = client.width;
     const float h = client.height;
     const D2D1_POINT_2F backTopLeft = D2D1::Point2F(0.0f, o);
@@ -329,9 +330,9 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
     const D2D1_POINT_2F backBottomLeft = D2D1::Point2F(0.0f, h);
     const D2D1_POINT_2F backBottomRight = D2D1::Point2F(w, h);
     const D2D1_POINT_2F frontTopLeft = D2D1::Point2F(L, o + T);
-    const D2D1_POINT_2F frontTopRight = D2D1::Point2F(w, o + T);
+    const D2D1_POINT_2F frontTopRight = D2D1::Point2F(w - R, o + T);
     const D2D1_POINT_2F frontBottomLeft = D2D1::Point2F(L, h - B);
-    const D2D1_POINT_2F frontBottomRight = D2D1::Point2F(w, h - B);
+    const D2D1_POINT_2F frontBottomRight = D2D1::Point2F(w - R, h - B);
 
     // Each face: a gradient across its thickness, full strength at the front edge and
     // fading toward the back, so it reads as a surface turning away.
@@ -383,15 +384,21 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
         face({backBottomLeft, frontBottomLeft, frontBottomRight, backBottomRight}, bottomShade,
              D2D1::Point2F(0.0f, h), D2D1::Point2F(0.0f, h - B));
     }
+    if (R > 0.0f)
+    {
+        face({backTopRight, backBottomRight, frontBottomRight, frontTopRight}, rightShade, D2D1::Point2F(w, 0.0f),
+             D2D1::Point2F(w - R, 0.0f));
+    }
 
     // The front face's edges: a line of light where it meets the top and left faces, a line
-    // of shade where it meets the bottom one, and a fainter crease along each mitre.
+    // of shade where it meets the bottom and right ones, and a fainter crease along each
+    // mitre.
     wil::com_ptr<ID2D1SolidColorBrush> line;
     if (SUCCEEDED_LOG(dc->CreateSolidColorBrush(edgeLight, line.put())))
     {
         if (T > 0.0f)
         {
-            dc->DrawLine(D2D1::Point2F(L, o + T + 0.5f), D2D1::Point2F(w, o + T + 0.5f), line.get(), 1.0f);
+            dc->DrawLine(D2D1::Point2F(L, o + T + 0.5f), D2D1::Point2F(w - R, o + T + 0.5f), line.get(), 1.0f);
         }
         if (L > 0.0f)
         {
@@ -400,7 +407,12 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
         if (B > 0.0f)
         {
             line->SetColor(edgeShade);
-            dc->DrawLine(D2D1::Point2F(L, h - B - 0.5f), D2D1::Point2F(w, h - B - 0.5f), line.get(), 1.0f);
+            dc->DrawLine(D2D1::Point2F(L, h - B - 0.5f), D2D1::Point2F(w - R, h - B - 0.5f), line.get(), 1.0f);
+        }
+        if (R > 0.0f)
+        {
+            line->SetColor(edgeShade);
+            dc->DrawLine(D2D1::Point2F(w - R - 0.5f, o + T), D2D1::Point2F(w - R - 0.5f, h - B), line.get(), 1.0f);
         }
         D2D1_COLOR_F crease = edgeLight;
         crease.a *= 0.5f;
@@ -415,6 +427,17 @@ void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& lay
             crease.a *= 0.5f;
             line->SetColor(crease);
             dc->DrawLine(backBottomLeft, frontBottomLeft, line.get(), 1.0f);
+        }
+        crease = edgeShade;
+        crease.a *= 0.5f;
+        line->SetColor(crease);
+        if (T > 0.0f && R > 0.0f)
+        {
+            dc->DrawLine(backTopRight, frontTopRight, line.get(), 1.0f);
+        }
+        if (B > 0.0f && R > 0.0f)
+        {
+            dc->DrawLine(backBottomRight, frontBottomRight, line.get(), 1.0f);
         }
     }
     dc->PopLayer();

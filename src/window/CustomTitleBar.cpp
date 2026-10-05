@@ -167,7 +167,8 @@ void CustomTitleBar::ApplyMinimumSize(HWND hwnd, MINMAXINFO* info) const
     // (window size minus client size) are added on top.
     const LONG buttonsWidth = m_layout.captionButtons.right - m_layout.captionButtons.left;
     const LONG pickerWidth = (m_layout.picker.right - m_layout.picker.left) +
-                             (m_layout.slabButton.right - m_layout.slabButton.left) + m_layout.slabLeftPx;
+                             (m_layout.slabButton.right - m_layout.slabButton.left) + m_layout.slabLeftPx +
+                             m_layout.slabRightPx;
     const LONG gap = m_layout.captionButtons.left - m_layout.picker.right;
     const LONG minClientWidth = std::max<LONG>(buttonsWidth, 0) + std::max<LONG>(pickerWidth, 0) +
                                 std::max<LONG>(gap, 0) + m_dpi.ToPx(kMinTitleWidthDip);
@@ -440,7 +441,7 @@ void CustomTitleBar::RenderSlabButton(ID2D1DeviceContext* dc, const EffectiveApp
         dc->FillRectangle(D2D1::RectF(left, top, right, bottom), m_textBrush.get());
     }
 
-    // The glyph: a front face with its top, left and bottom faces, as the window is drawn.
+    // The glyph: a front face with its four side faces, as the window is drawn.
     wil::com_ptr<ID2D1Factory> factory;
     dc->GetFactory(factory.put());
     const float cx = (left + right) / 2.0f;
@@ -448,7 +449,8 @@ void CustomTitleBar::RenderSlabButton(ID2D1DeviceContext* dc, const EffectiveApp
     const float half = kPickerDiameterDip / 2.0f; // the same footprint as the picker's circle
     const float depth = 3.0f;
     const D2D1_RECT_F back = D2D1::RectF(cx - half, cy - half + 1.0f, cx + half, cy + half - 1.0f);
-    const D2D1_RECT_F front = D2D1::RectF(back.left + depth, back.top + depth, back.right, back.bottom - depth);
+    const D2D1_RECT_F front =
+        D2D1::RectF(back.left + depth, back.top + depth, back.right - depth, back.bottom - depth);
     const auto fillPolygon = [&](std::initializer_list<D2D1_POINT_2F> points, float alpha) {
         wil::com_ptr<ID2D1PathGeometry> path;
         wil::com_ptr<ID2D1GeometrySink> sink;
@@ -480,6 +482,7 @@ void CustomTitleBar::RenderSlabButton(ID2D1DeviceContext* dc, const EffectiveApp
     fillPolygon({bl, br, fr, fl}, 0.30f);    // top face
     fillPolygon({bl, fl, fbl, bbl}, 0.55f);  // left face
     fillPolygon({bbl, fbl, fbr, bbr}, 0.80f); // bottom face
+    fillPolygon({br, bbr, fbr, fr}, 0.65f);   // right face
     m_textBrush->SetColor(color(effective.tint, 1.0f));
     dc->FillRectangle(front, m_textBrush.get());
     m_textBrush->SetColor(color(effective.text, 0.40f));

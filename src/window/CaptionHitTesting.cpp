@@ -67,6 +67,7 @@ CaptionLayout CaptionHitTester::ComputeLayout(const CaptionMetrics& m)
     layout.slabTopPx = std::max(0, m.slabTopPx);
     layout.slabLeftPx = std::max(0, m.slabLeftPx);
     layout.slabBottomPx = std::max(0, m.slabBottomPx);
+    layout.slabRightPx = std::max(0, m.slabRightPx);
     layout.captionHeightPx = m.captionPx + m.framePx + m.paddedBorderPx + layout.slabTopPx;
     layout.resizeBandPx = m.maximized ? 0 : m.framePx + m.paddedBorderPx;
     // Maximized: the client area starts at the window's top edge, which is above
@@ -112,6 +113,7 @@ CaptionLayout CaptionHitTester::Compute(HWND hwnd, UINT dpi)
     metrics.slabTopPx = scale.ToPx(static_cast<float>(m_slabTopPx));
     metrics.slabLeftPx = scale.ToPx(static_cast<float>(m_slabLeftPx));
     metrics.slabBottomPx = scale.ToPx(static_cast<float>(m_slabBottomPx));
+    metrics.slabRightPx = scale.ToPx(static_cast<float>(m_slabRightPx));
     return ComputeLayout(metrics);
 }
 

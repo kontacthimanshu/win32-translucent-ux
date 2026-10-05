@@ -183,7 +183,8 @@ AppearanceSettings ParseAppearance(const json& appearance, std::vector<std::wstr
 
     for (const auto& [key, name, target] :
          {std::tuple{"slabTop", L"slabTop", &settings.slabTop}, std::tuple{"slabLeft", L"slabLeft", &settings.slabLeft},
-          std::tuple{"slabBottom", L"slabBottom", &settings.slabBottom}})
+          std::tuple{"slabBottom", L"slabBottom", &settings.slabBottom},
+          std::tuple{"slabRight", L"slabRight", &settings.slabRight}})
     {
         if (const auto it = appearance.find(key); it != appearance.end())
         {
@@ -242,6 +243,7 @@ json ToJson(const AppearanceSettings& s)
     appearance["slabTop"] = s.slabTop;
     appearance["slabLeft"] = s.slabLeft;
     appearance["slabBottom"] = s.slabBottom;
+    appearance["slabRight"] = s.slabRight;
     appearance["customColors"] = std::move(colors);
 
     json root;
@@ -410,6 +412,7 @@ AppearanceSettings SettingsManager::Reset(const AppearanceSettings& current)
     reset.slabTop = current.slabTop;
     reset.slabLeft = current.slabLeft;
     reset.slabBottom = current.slabBottom;
+    reset.slabRight = current.slabRight;
     return reset;
 }
 

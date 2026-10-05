@@ -29,6 +29,7 @@ struct CaptionMetrics
     int slabTopPx = 0;
     int slabLeftPx = 0;
     int slabBottomPx = 0;
+    int slabRightPx = 0;
 };
 
 // Supplies CaptionMetrics for a window. Replaced by a fake in tests.
@@ -61,11 +62,12 @@ class CaptionHitTester final : public ICaptionHitTester
     CaptionLayout Compute(HWND hwnd, UINT dpi) override;
     // The slab faces' thicknesses in pixels at 100% scale (0 = off); Compute scales them to
     // the window's DPI for the metrics.
-    void SetSlabPx(int topPx, int leftPx, int bottomPx) noexcept
+    void SetSlabPx(int topPx, int leftPx, int bottomPx, int rightPx) noexcept
     {
         m_slabTopPx = topPx > 0 ? topPx : 0;
         m_slabLeftPx = leftPx > 0 ? leftPx : 0;
         m_slabBottomPx = bottomPx > 0 ? bottomPx : 0;
+        m_slabRightPx = rightPx > 0 ? rightPx : 0;
     }
     bool HitTest(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam, const CaptionLayout& layout,
                  LRESULT* result) override;
@@ -75,6 +77,7 @@ class CaptionHitTester final : public ICaptionHitTester
     int m_slabTopPx = 0;
     int m_slabLeftPx = 0;
     int m_slabBottomPx = 0;
+    int m_slabRightPx = 0;
 };
 
 } // namespace te

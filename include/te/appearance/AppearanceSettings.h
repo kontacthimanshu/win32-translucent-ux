@@ -31,11 +31,12 @@ struct AppearanceSettings
     // left and bottom edges, in pixels at 100% scale (scaled with the monitor's DPI like the
     // rest of the window; kSlabMinPx-kSlabMaxPx; 0 = a flat pane).
     int slabThicknessPx = 12;
-    // Which of the slab's faces are drawn; with all three off the window is a flat pane.
+    // Which of the slab's faces are drawn; with all four off the window is a flat pane.
     // slabThicknessPx is kept for when one is turned on again.
     bool slabTop = true;
     bool slabLeft = true;
     bool slabBottom = true;
+    bool slabRight = true;
 };
 
 inline constexpr int kSlabMinPx = 0;

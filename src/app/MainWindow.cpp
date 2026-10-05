@@ -112,7 +112,7 @@ void MainWindow::ApplyUserSettings(const AppearanceSettings& settings)
     }
     const bool slabChanged = settings.slabThicknessPx != m_settings.slabThicknessPx ||
                              settings.slabTop != m_settings.slabTop || settings.slabLeft != m_settings.slabLeft ||
-                             settings.slabBottom != m_settings.slabBottom;
+                             settings.slabBottom != m_settings.slabBottom || settings.slabRight != m_settings.slabRight;
     m_settings = settings;
     if (slabChanged && m_hwnd)
     {
@@ -612,6 +612,7 @@ void MainWindow::OnCreate()
         settings.slabTop = slab.slabTop;
         settings.slabLeft = slab.slabLeft;
         settings.slabBottom = slab.slabBottom;
+        settings.slabRight = slab.slabRight;
         settings.slabThicknessPx = slab.slabThicknessPx;
         ApplyUserSettings(settings);
     });
@@ -924,14 +925,14 @@ void MainWindow::UpdateLayout()
 {
     const int slab = m_settings.slabThicknessPx;
     m_hitTester.SetSlabPx(m_settings.slabTop ? slab : 0, m_settings.slabLeft ? slab : 0,
-                          m_settings.slabBottom ? slab : 0);
+                          m_settings.slabBottom ? slab : 0, m_settings.slabRight ? slab : 0);
     m_titleBar.UpdateLayout(m_hwnd);
     RECT client{};
     GetClientRect(m_hwnd, &client);
     const CaptionLayout& caption = m_titleBar.Layout();
     m_layout = MainLayout::Compute(SIZE{client.right, client.bottom}, m_dpi.Dpi(), caption.captionHeightPx,
                                    m_text ? m_text->TextScale() : 1.0f,
-                                   {caption.slabTopPx, caption.slabLeftPx, caption.slabBottomPx});
+                                   {caption.slabTopPx, caption.slabLeftPx, caption.slabBottomPx, caption.slabRightPx});
     m_layout.captionButtons = MainLayout::ToDip(caption.captionButtons, m_dpi.Dpi());
     m_layout.slabOrigin = MainLayout::ToDip(RECT{0, caption.contentTopPx, 0, 0}, m_dpi.Dpi()).top;
     m_statusBar.SetBounds(m_layout.statusBar);

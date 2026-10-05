@@ -50,6 +50,7 @@
 #define IDC_SLAB_LEFT      2105
 #define IDC_SLAB_BOTTOM    2106
 #define IDC_SLAB_EDGES     2107
+#define IDC_SLAB_RIGHT     2108
 
 // Popup strings (STRINGTABLE)
 #define IDS_REASON_REQUIRES_22621   1110

@@ -1,8 +1,8 @@
 #pragma once
 
 // The slab popup: a modeless IDD_SLAB dialog under the title bar's slab button, with a
-// check box for each of the window's slab faces - Top, Left, Bottom
-// (AppearanceSettings::slabTop / slabLeft / slabBottom) - a trackbar for their thickness in
+// check box for each of the window's slab faces - Top, Left, Bottom, Right
+// (AppearanceSettings::slabTop / slabLeft / slabBottom / slabRight) - a trackbar for their thickness in
 // pixels (AppearanceSettings::slabThicknessPx, kSlabMinPx-kSlabMaxPx), its value, and
 // Default. The thickness controls are disabled while every face is off; the thickness is
 // kept.
@@ -29,7 +29,7 @@ class SlabPopup
     SlabPopup(const SlabPopup&) = delete;
     SlabPopup& operator=(const SlabPopup&) = delete;
 
-    // The slab fields of `settings` (slabTop, slabLeft, slabBottom, slabThicknessPx).
+    // The slab fields of `settings` (slabTop, slabLeft, slabBottom, slabRight, slabThicknessPx).
     void Show(HWND owner, const RECT& anchorScreen, const AppearanceSettings& settings);
     void Hide();
     [[nodiscard]] bool IsOpen() const;

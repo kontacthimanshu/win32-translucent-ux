@@ -160,11 +160,12 @@ void SlabPopup::SyncControls()
     CheckDlgButton(m_dialog, IDC_SLAB_TOP, m_settings.slabTop ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(m_dialog, IDC_SLAB_LEFT, m_settings.slabLeft ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(m_dialog, IDC_SLAB_BOTTOM, m_settings.slabBottom ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(m_dialog, IDC_SLAB_RIGHT, m_settings.slabRight ? BST_CHECKED : BST_UNCHECKED);
     const int thickness = m_settings.slabThicknessPx;
     SendDlgItemMessageW(m_dialog, IDC_SLAB_TRACK, TBM_SETPOS, TRUE, thickness);
     const std::wstring value = thickness == 0 ? L"0 px (flat)" : std::to_wstring(thickness) + L" px";
     SetDlgItemTextW(m_dialog, IDC_SLAB_VALUE, value.c_str());
-    const bool anyEdge = m_settings.slabTop || m_settings.slabLeft || m_settings.slabBottom;
+    const bool anyEdge = m_settings.slabTop || m_settings.slabLeft || m_settings.slabBottom || m_settings.slabRight;
     for (const int id : {IDC_SLAB_LABEL, IDC_SLAB_VALUE, IDC_SLAB_TRACK, IDC_SLAB_DEFAULT})
     {
         EnableWindow(GetDlgItem(m_dialog, id), anyEdge);
@@ -175,8 +176,10 @@ void SlabPopup::SyncControls()
 void SlabPopup::OnEdgeClicked(int id)
 {
     const bool checked = IsDlgButtonChecked(m_dialog, id) == BST_CHECKED;
-    bool& edge = id == IDC_SLAB_TOP ? m_settings.slabTop : id == IDC_SLAB_LEFT ? m_settings.slabLeft
-                                                                                : m_settings.slabBottom;
+    bool& edge = id == IDC_SLAB_TOP      ? m_settings.slabTop
+                 : id == IDC_SLAB_LEFT   ? m_settings.slabLeft
+                 : id == IDC_SLAB_BOTTOM ? m_settings.slabBottom
+                                         : m_settings.slabRight;
     if (checked == edge)
     {
         return;
@@ -240,6 +243,7 @@ INT_PTR SlabPopup::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam)
             case IDC_SLAB_TOP:
             case IDC_SLAB_LEFT:
             case IDC_SLAB_BOTTOM:
+            case IDC_SLAB_RIGHT:
                 if (!m_syncing)
                 {
                     OnEdgeClicked(LOWORD(wParam));

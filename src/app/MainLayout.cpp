@@ -16,11 +16,14 @@ MainLayout MainLayout::Compute(SIZE clientSize, UINT dpi, int captionHeightPx, f
     // Top to bottom: caption, toolbar, content, status bar. The status bar keeps
     // its height and the content area absorbs any shortfall.
     const float captionBottom = std::clamp(static_cast<float>(captionHeightPx) / scale, 0.0f, height);
-    // The slab's left and bottom faces take their thickness from the panes below the caption.
+    // The slab's left, bottom and right faces take their thickness from the panes below the
+    // caption.
     const auto toDip = [&](int px, float limit) {
         return std::clamp(static_cast<float>(std::max(0, px)) / scale, 0.0f, std::max(0.0f, limit));
     };
     const float slabLeft = toDip(slabPx.left, width);
+    const float slabRight = toDip(slabPx.right, width - slabLeft);
+    const float right = width - slabRight;
     const float slabBottom = toDip(slabPx.bottom, height - captionBottom);
     const float bottom = height - slabBottom;
     const float statusTop = std::max(captionBottom, bottom - kStatusBarHeightDip * textScale);
@@ -28,22 +31,26 @@ MainLayout MainLayout::Compute(SIZE clientSize, UINT dpi, int captionHeightPx, f
 
     const float paneLeft = slabLeft;
     const float paneRight =
-        paneLeft + std::min(kNavigationPaneWidthDip, (width - slabLeft) * kNavigationPaneMaxShare);
+        paneLeft + std::min(kNavigationPaneWidthDip, (right - slabLeft) * kNavigationPaneMaxShare);
 
     MainLayout layout;
     layout.caption = D2D1::RectF(0.0f, 0.0f, width, captionBottom);
-    layout.toolbar = D2D1::RectF(paneLeft, captionBottom, width, toolbarBottom);
+    layout.toolbar = D2D1::RectF(paneLeft, captionBottom, right, toolbarBottom);
     layout.navigationPane = D2D1::RectF(paneLeft, toolbarBottom, paneRight, statusTop);
-    layout.fileList = D2D1::RectF(paneRight, toolbarBottom, width, statusTop);
-    layout.statusBar = D2D1::RectF(paneLeft, statusTop, width, std::max(statusTop, bottom));
-    layout.slab = {toDip(slabPx.top, captionBottom), slabLeft, slabBottom};
+    layout.fileList = D2D1::RectF(paneRight, toolbarBottom, std::max(paneRight, right), statusTop);
+    layout.statusBar = D2D1::RectF(paneLeft, statusTop, right, std::max(statusTop, bottom));
+    layout.slab = {toDip(slabPx.top, captionBottom), slabLeft, slabBottom, slabRight};
     if (slabLeft > 0.0f)
     {
         layout.slabLeft = D2D1::RectF(0.0f, captionBottom, slabLeft, height);
     }
+    if (slabRight > 0.0f)
+    {
+        layout.slabRight = D2D1::RectF(right, captionBottom, width, height);
+    }
     if (slabBottom > 0.0f)
     {
-        layout.slabBottom = D2D1::RectF(slabLeft, std::max(captionBottom, bottom), width, height);
+        layout.slabBottom = D2D1::RectF(slabLeft, std::max(captionBottom, bottom), right, height);
     }
     return layout;
 }
