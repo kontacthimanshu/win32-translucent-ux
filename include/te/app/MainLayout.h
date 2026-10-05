@@ -25,7 +25,7 @@ struct MainLayout
     D2D1_RECT_F navigationPane{}; // left column between toolbar and status bar
     D2D1_RECT_F fileList{};       // right of the pane, between toolbar and status bar
     D2D1_RECT_F statusBar{};      // full width, at the bottom
-    // The window as a slab of glass (AppearanceSettings::slabThicknessPx): faces along the
+    // The window as a slab of glass (AppearanceSettings::slab*Px): faces along the
     // top (inside the caption strip, which is that much taller), the left, the bottom and
     // the right edges, each one on or off on its own. The panes below the caption move in by
     // the left, bottom and right faces. slabLeft, slabBottom and slabRight are the face

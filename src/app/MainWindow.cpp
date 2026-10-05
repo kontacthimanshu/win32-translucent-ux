@@ -110,8 +110,9 @@ void MainWindow::ApplyUserSettings(const AppearanceSettings& settings)
         m_capabilities.backdropApplyFailed = false; // a new choice gets a fresh attempt
         m_modeOverridden = false;                   // the user chose a mode: save it
     }
-    const bool slabChanged = settings.slabThicknessPx != m_settings.slabThicknessPx ||
-                             settings.slabTop != m_settings.slabTop || settings.slabLeft != m_settings.slabLeft ||
+    const bool slabChanged = settings.slabTopPx != m_settings.slabTopPx || settings.slabLeftPx != m_settings.slabLeftPx ||
+                             settings.slabBottomPx != m_settings.slabBottomPx ||
+                             settings.slabRightPx != m_settings.slabRightPx || settings.slabTop != m_settings.slabTop || settings.slabLeft != m_settings.slabLeft ||
                              settings.slabBottom != m_settings.slabBottom || settings.slabRight != m_settings.slabRight;
     m_settings = settings;
     if (slabChanged && m_hwnd)
@@ -613,7 +614,10 @@ void MainWindow::OnCreate()
         settings.slabLeft = slab.slabLeft;
         settings.slabBottom = slab.slabBottom;
         settings.slabRight = slab.slabRight;
-        settings.slabThicknessPx = slab.slabThicknessPx;
+        settings.slabTopPx = slab.slabTopPx;
+        settings.slabLeftPx = slab.slabLeftPx;
+        settings.slabBottomPx = slab.slabBottomPx;
+        settings.slabRightPx = slab.slabRightPx;
         ApplyUserSettings(settings);
     });
     m_titleBar.SetSlabCallback([this] { ToggleSlabPopup(); });
@@ -923,9 +927,9 @@ void MainWindow::OnDpiChanged(UINT dpi, const RECT& suggested)
 
 void MainWindow::UpdateLayout()
 {
-    const int slab = m_settings.slabThicknessPx;
-    m_hitTester.SetSlabPx(m_settings.slabTop ? slab : 0, m_settings.slabLeft ? slab : 0,
-                          m_settings.slabBottom ? slab : 0, m_settings.slabRight ? slab : 0);
+    const AppearanceSettings& s = m_settings;
+    m_hitTester.SetSlabPx(s.slabTop ? s.slabTopPx : 0, s.slabLeft ? s.slabLeftPx : 0,
+                          s.slabBottom ? s.slabBottomPx : 0, s.slabRight ? s.slabRightPx : 0);
     m_titleBar.UpdateLayout(m_hwnd);
     RECT client{};
     GetClientRect(m_hwnd, &client);

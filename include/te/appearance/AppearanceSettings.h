@@ -27,12 +27,15 @@ struct AppearanceSettings
         colors.fill(Rgb{0xFF, 0xFF, 0xFF});
         return colors;
     }();
-    // The window drawn as a slab of glass: the thickness of the faces seen along its top,
-    // left and bottom edges, in pixels at 100% scale (scaled with the monitor's DPI like the
-    // rest of the window; kSlabMinPx-kSlabMaxPx; 0 = a flat pane).
-    int slabThicknessPx = 12;
-    // Which of the slab's faces are drawn; with all four off the window is a flat pane.
-    // slabThicknessPx is kept for when one is turned on again.
+    // The window drawn as a slab of glass: the thickness of the face seen along each edge,
+    // in pixels at 100% scale (scaled with the monitor's DPI like the rest of the window;
+    // kSlabMinPx-kSlabMaxPx; 0 draws no face on that edge).
+    int slabTopPx = 12;
+    int slabLeftPx = 12;
+    int slabBottomPx = 12;
+    int slabRightPx = 12;
+    // Which of the slab's faces are drawn; with all four off the window is a flat pane. A
+    // face's thickness is kept while it is off, for when it is turned on again.
     bool slabTop = true;
     bool slabLeft = true;
     bool slabBottom = true;

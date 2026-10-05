@@ -19,6 +19,26 @@ namespace
 // Posted to the popup after its own WM_DPICHANGED, once the dialog manager has rescaled it.
 constexpr UINT kRepositionMessage = WM_APP + 1;
 
+// One row of the popup: an edge's controls and its fields.
+struct EdgeRow
+{
+    int check;
+    int track;
+    int value;
+    bool AppearanceSettings::*on;
+    int AppearanceSettings::*px;
+};
+
+constexpr EdgeRow kRows[] = {
+    {IDC_SLAB_TOP, IDC_SLAB_TOP_TRACK, IDC_SLAB_TOP_VALUE, &AppearanceSettings::slabTop, &AppearanceSettings::slabTopPx},
+    {IDC_SLAB_LEFT, IDC_SLAB_LEFT_TRACK, IDC_SLAB_LEFT_VALUE, &AppearanceSettings::slabLeft,
+     &AppearanceSettings::slabLeftPx},
+    {IDC_SLAB_BOTTOM, IDC_SLAB_BOTTOM_TRACK, IDC_SLAB_BOTTOM_VALUE, &AppearanceSettings::slabBottom,
+     &AppearanceSettings::slabBottomPx},
+    {IDC_SLAB_RIGHT, IDC_SLAB_RIGHT_TRACK, IDC_SLAB_RIGHT_VALUE, &AppearanceSettings::slabRight,
+     &AppearanceSettings::slabRightPx},
+};
+
 } // namespace
 
 SlabPopup::SlabPopup(HINSTANCE instance, std::function<void(HWND)> registerDialog)
@@ -59,7 +79,10 @@ bool SlabPopup::EnsureDialog(HWND owner)
 void SlabPopup::Show(HWND owner, const RECT& anchorScreen, const AppearanceSettings& settings)
 {
     m_settings = settings;
-    m_settings.slabThicknessPx = std::clamp(settings.slabThicknessPx, kSlabMinPx, kSlabMaxPx);
+    for (const EdgeRow& row : kRows)
+    {
+        m_settings.*row.px = std::clamp(settings.*row.px, kSlabMinPx, kSlabMaxPx);
+    }
     if (!EnsureDialog(owner))
     {
         return;
@@ -157,36 +180,71 @@ void SlabPopup::Position(HWND owner, const RECT& anchorScreen)
 void SlabPopup::SyncControls()
 {
     m_syncing = true;
-    CheckDlgButton(m_dialog, IDC_SLAB_TOP, m_settings.slabTop ? BST_CHECKED : BST_UNCHECKED);
-    CheckDlgButton(m_dialog, IDC_SLAB_LEFT, m_settings.slabLeft ? BST_CHECKED : BST_UNCHECKED);
-    CheckDlgButton(m_dialog, IDC_SLAB_BOTTOM, m_settings.slabBottom ? BST_CHECKED : BST_UNCHECKED);
-    CheckDlgButton(m_dialog, IDC_SLAB_RIGHT, m_settings.slabRight ? BST_CHECKED : BST_UNCHECKED);
-    const int thickness = m_settings.slabThicknessPx;
-    SendDlgItemMessageW(m_dialog, IDC_SLAB_TRACK, TBM_SETPOS, TRUE, thickness);
-    const std::wstring value = thickness == 0 ? L"0 px (flat)" : std::to_wstring(thickness) + L" px";
-    SetDlgItemTextW(m_dialog, IDC_SLAB_VALUE, value.c_str());
-    const bool anyEdge = m_settings.slabTop || m_settings.slabLeft || m_settings.slabBottom || m_settings.slabRight;
-    for (const int id : {IDC_SLAB_LABEL, IDC_SLAB_VALUE, IDC_SLAB_TRACK, IDC_SLAB_DEFAULT})
+    for (const EdgeRow& row : kRows)
     {
-        EnableWindow(GetDlgItem(m_dialog, id), anyEdge);
+        const bool on = m_settings.*row.on;
+        const int px = m_settings.*row.px;
+        CheckDlgButton(m_dialog, row.check, on ? BST_CHECKED : BST_UNCHECKED);
+        SendDlgItemMessageW(m_dialog, row.track, TBM_SETPOS, TRUE, px);
+        SetDlgItemTextW(m_dialog, row.value, (std::to_wstring(px) + L" px").c_str());
+        EnableWindow(GetDlgItem(m_dialog, row.track), on);
+        EnableWindow(GetDlgItem(m_dialog, row.value), on);
     }
     m_syncing = false;
 }
 
 void SlabPopup::OnEdgeClicked(int id)
 {
-    const bool checked = IsDlgButtonChecked(m_dialog, id) == BST_CHECKED;
-    bool& edge = id == IDC_SLAB_TOP      ? m_settings.slabTop
-                 : id == IDC_SLAB_LEFT   ? m_settings.slabLeft
-                 : id == IDC_SLAB_BOTTOM ? m_settings.slabBottom
-                                         : m_settings.slabRight;
-    if (checked == edge)
+    for (const EdgeRow& row : kRows)
     {
+        if (row.check != id)
+        {
+            continue;
+        }
+        const bool checked = IsDlgButtonChecked(m_dialog, id) == BST_CHECKED;
+        if (checked != m_settings.*row.on)
+        {
+            m_settings.*row.on = checked;
+            SyncControls();
+            Changed();
+        }
         return;
     }
-    edge = checked;
-    SyncControls();
-    Changed();
+}
+
+void SlabPopup::OnScroll(HWND trackbar)
+{
+    const int id = GetDlgCtrlID(trackbar);
+    for (const EdgeRow& row : kRows)
+    {
+        if (row.track != id)
+        {
+            continue;
+        }
+        const int px = std::clamp(static_cast<int>(SendMessageW(trackbar, TBM_GETPOS, 0, 0)), kSlabMinPx, kSlabMaxPx);
+        if (px != m_settings.*row.px)
+        {
+            m_settings.*row.px = px;
+            SyncControls();
+            Changed();
+        }
+        return;
+    }
+}
+
+void SlabPopup::SetDefaultThickness()
+{
+    bool changed = false;
+    for (const EdgeRow& row : kRows)
+    {
+        changed = changed || m_settings.*row.px != kSlabDefaultPx;
+        m_settings.*row.px = kSlabDefaultPx;
+    }
+    if (changed)
+    {
+        SyncControls();
+        Changed();
+    }
 }
 
 void SlabPopup::Changed()
@@ -195,18 +253,6 @@ void SlabPopup::Changed()
     {
         m_changed(m_settings);
     }
-}
-
-void SlabPopup::SetThickness(int px)
-{
-    px = std::clamp(px, kSlabMinPx, kSlabMaxPx);
-    if (px == m_settings.slabThicknessPx)
-    {
-        return;
-    }
-    m_settings.slabThicknessPx = px;
-    SyncControls();
-    Changed();
 }
 
 INT_PTR CALLBACK SlabPopup::DialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -230,9 +276,12 @@ INT_PTR SlabPopup::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam)
     switch (msg)
     {
     case WM_INITDIALOG:
-        SendDlgItemMessageW(m_dialog, IDC_SLAB_TRACK, TBM_SETRANGE, TRUE, MAKELPARAM(kSlabMinPx, kSlabMaxPx));
-        SendDlgItemMessageW(m_dialog, IDC_SLAB_TRACK, TBM_SETPAGESIZE, 0, 4);
-        SendDlgItemMessageW(m_dialog, IDC_SLAB_TRACK, TBM_SETTICFREQ, 4, 0);
+        for (const EdgeRow& row : kRows)
+        {
+            SendDlgItemMessageW(m_dialog, row.track, TBM_SETRANGE, TRUE, MAKELPARAM(kSlabMinPx, kSlabMaxPx));
+            SendDlgItemMessageW(m_dialog, row.track, TBM_SETPAGESIZE, 0, 4);
+            SendDlgItemMessageW(m_dialog, row.track, TBM_SETTICFREQ, 4, 0);
+        }
         return FALSE; // Show() sets the focus
 
     case WM_COMMAND:
@@ -250,7 +299,7 @@ INT_PTR SlabPopup::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam)
                 }
                 break;
             case IDC_SLAB_DEFAULT:
-                SetThickness(kSlabDefaultPx);
+                SetDefaultThickness();
                 break;
             case IDCANCEL:
                 Hide();
@@ -264,7 +313,7 @@ INT_PTR SlabPopup::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_HSCROLL:
         if (lParam && !m_syncing)
         {
-            SetThickness(static_cast<int>(SendMessageW(reinterpret_cast<HWND>(lParam), TBM_GETPOS, 0, 0)));
+            OnScroll(reinterpret_cast<HWND>(lParam));
         }
         return TRUE;
 

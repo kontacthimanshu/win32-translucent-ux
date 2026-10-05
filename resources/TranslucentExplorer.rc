@@ -83,21 +83,27 @@ BEGIN
     PUSHBUTTON      "Reset to defaults", IDC_RESET, 93, 250, 80, 14, WS_TABSTOP
 END
 
-// The slab popup (SlabPopup): the thickness of the window's slab faces, in pixels.
-IDD_SLAB DIALOGEX 0, 0, 180, 88
+// The slab popup (SlabPopup): one row per edge - whether it has a face, and its thickness
+// in pixels.
+IDD_SLAB DIALOGEX 0, 0, 200, 120
 STYLE DS_SHELLFONT | WS_POPUP | WS_BORDER
 EXSTYLE WS_EX_CONTROLPARENT
 FONT 9, "Segoe UI", 400, 0, 0x1
 BEGIN
-    GROUPBOX        "Slab edges", IDC_SLAB_EDGES, 7, 4, 166, 28
-    AUTOCHECKBOX    "Top", IDC_SLAB_TOP, 14, 16, 34, 10, WS_GROUP | WS_TABSTOP
-    AUTOCHECKBOX    "Left", IDC_SLAB_LEFT, 52, 16, 34, 10, WS_TABSTOP
-    AUTOCHECKBOX    "Bottom", IDC_SLAB_BOTTOM, 90, 16, 40, 10, WS_TABSTOP
-    AUTOCHECKBOX    "Right", IDC_SLAB_RIGHT, 134, 16, 36, 10, WS_TABSTOP
-    LTEXT           "Slab thickness", IDC_SLAB_LABEL, 7, 37, 110, 9, WS_GROUP
-    RTEXT           "", IDC_SLAB_VALUE, 117, 37, 56, 9
-    CONTROL         "", IDC_SLAB_TRACK, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 4, 48, 172, 16
-    PUSHBUTTON      "Default", IDC_SLAB_DEFAULT, 113, 68, 60, 14, WS_TABSTOP
+    LTEXT           "Slab edges and thickness", IDC_SLAB_LABEL, 7, 5, 186, 9
+    AUTOCHECKBOX    "Top", IDC_SLAB_TOP, 7, 20, 40, 10, WS_GROUP | WS_TABSTOP
+    CONTROL         "", IDC_SLAB_TOP_TRACK, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 48, 17, 118, 16
+    RTEXT           "", IDC_SLAB_TOP_VALUE, 166, 21, 27, 9
+    AUTOCHECKBOX    "Left", IDC_SLAB_LEFT, 7, 40, 40, 10, WS_GROUP | WS_TABSTOP
+    CONTROL         "", IDC_SLAB_LEFT_TRACK, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 48, 37, 118, 16
+    RTEXT           "", IDC_SLAB_LEFT_VALUE, 166, 41, 27, 9
+    AUTOCHECKBOX    "Bottom", IDC_SLAB_BOTTOM, 7, 60, 40, 10, WS_GROUP | WS_TABSTOP
+    CONTROL         "", IDC_SLAB_BOTTOM_TRACK, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 48, 57, 118, 16
+    RTEXT           "", IDC_SLAB_BOTTOM_VALUE, 166, 61, 27, 9
+    AUTOCHECKBOX    "Right", IDC_SLAB_RIGHT, 7, 80, 40, 10, WS_GROUP | WS_TABSTOP
+    CONTROL         "", IDC_SLAB_RIGHT_TRACK, "msctls_trackbar32", TBS_HORZ | TBS_BOTTOM | TBS_AUTOTICKS | WS_TABSTOP, 48, 77, 118, 16
+    RTEXT           "", IDC_SLAB_RIGHT_VALUE, 166, 81, 27, 9
+    PUSHBUTTON      "Default", IDC_SLAB_DEFAULT, 133, 100, 60, 14, WS_GROUP | WS_TABSTOP
 END
 
 // ---------------------------------------------------------------------------

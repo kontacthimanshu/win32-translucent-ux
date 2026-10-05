@@ -43,14 +43,20 @@
 // Slab popup dialog and controls (SlabPopup)
 #define IDD_SLAB           201
 #define IDC_SLAB_LABEL     2100
-#define IDC_SLAB_TRACK     2101
-#define IDC_SLAB_VALUE     2102
 #define IDC_SLAB_DEFAULT   2103
+// One row per edge: its check box, its thickness trackbar and the value.
 #define IDC_SLAB_TOP       2104
 #define IDC_SLAB_LEFT      2105
 #define IDC_SLAB_BOTTOM    2106
-#define IDC_SLAB_EDGES     2107
 #define IDC_SLAB_RIGHT     2108
+#define IDC_SLAB_TOP_TRACK    2110
+#define IDC_SLAB_LEFT_TRACK   2111
+#define IDC_SLAB_BOTTOM_TRACK 2112
+#define IDC_SLAB_RIGHT_TRACK  2113
+#define IDC_SLAB_TOP_VALUE    2120
+#define IDC_SLAB_LEFT_VALUE   2121
+#define IDC_SLAB_BOTTOM_VALUE 2122
+#define IDC_SLAB_RIGHT_VALUE  2123
 
 // Popup strings (STRINGTABLE)
 #define IDS_REASON_REQUIRES_22621   1110
