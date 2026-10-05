@@ -24,7 +24,7 @@ struct CaptionMetrics
     RECT captionButtons{};  // client coords, from DWMWA_CAPTION_BUTTON_BOUNDS
     SIZE clientSize{};      // client area size
     bool maximized = false;
-    // The slab faces' thicknesses at `dpi` (AppearanceSettings::slabThicknessPx scaled; 0 for
+    // The slab faces' thicknesses at `dpi` (AppearanceSettings::slab*Px scaled; 0 for
     // a face that is off).
     int slabTopPx = 0;
     int slabLeftPx = 0;

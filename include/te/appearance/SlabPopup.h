@@ -1,11 +1,12 @@
 #pragma once
 
-// The slab popup: a modeless IDD_SLAB dialog under the title bar's slab button, with a
-// check box for each of the window's slab faces - Top, Left, Bottom, Right
-// (AppearanceSettings::slabTop / slabLeft / slabBottom / slabRight) - a trackbar for their thickness in
-// pixels (AppearanceSettings::slabThicknessPx, kSlabMinPx-kSlabMaxPx), its value, and
-// Default. The thickness controls are disabled while every face is off; the thickness is
-// kept.
+// The slab popup: a modeless IDD_SLAB dialog under the title bar's slab button, with a row
+// for each of the window's slab faces - Top, Left, Bottom, Right: a check box that turns the
+// face on or off (AppearanceSettings::slabTop / slabLeft / slabBottom / slabRight), a
+// trackbar for its thickness in pixels (AppearanceSettings::slabTopPx / slabLeftPx /
+// slabBottomPx / slabRightPx, kSlabMinPx-kSlabMaxPx) and the value - and Default, which sets
+// every thickness to kSlabDefaultPx. A face's trackbar is disabled while the face is off;
+// its thickness is kept.
 // It opens and closes like the appearance popup (ColorPicker): the button toggles it,
 // Escape or a click elsewhere dismisses it. Every change applies at once through the
 // changed callback; the owner persists it.
@@ -29,7 +30,7 @@ class SlabPopup
     SlabPopup(const SlabPopup&) = delete;
     SlabPopup& operator=(const SlabPopup&) = delete;
 
-    // The slab fields of `settings` (slabTop, slabLeft, slabBottom, slabRight, slabThicknessPx).
+    // The slab fields of `settings` (slabTop... and slabTopPx... for each edge).
     void Show(HWND owner, const RECT& anchorScreen, const AppearanceSettings& settings);
     void Hide();
     [[nodiscard]] bool IsOpen() const;
@@ -55,8 +56,9 @@ class SlabPopup
     bool EnsureDialog(HWND owner);
     void Position(HWND owner, const RECT& anchorScreen);
     void SyncControls();
-    void SetThickness(int px);
     void OnEdgeClicked(int id);
+    void OnScroll(HWND trackbar);
+    void SetDefaultThickness();
     void Changed();
 
     HINSTANCE m_instance;

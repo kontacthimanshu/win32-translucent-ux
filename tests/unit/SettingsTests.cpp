@@ -328,31 +328,49 @@ TEST_F(SettingsTest, ResetKeepsCustomColors)
     EXPECT_EQ(reset.customColors[4], (te::Rgb{9, 9, 9}));
 }
 
-TEST_F(SettingsTest, SlabThicknessRoundTripsAndClamps)
+TEST_F(SettingsTest, SlabThicknessesRoundTripAndClampPerEdge)
 {
     te::AppearanceSettings saved;
-    saved.slabThicknessPx = 20;
+    saved.slabTopPx = 20;
+    saved.slabLeftPx = 6;
+    saved.slabBottomPx = 0;
+    saved.slabRightPx = 33;
     ASSERT_HRESULT_SUCCEEDED(te::SettingsManager(m_dir).Save(saved));
-    EXPECT_EQ(Load().settings.slabThicknessPx, 20);
+    const te::AppearanceSettings loaded = Load().settings;
+    EXPECT_EQ(loaded.slabTopPx, 20);
+    EXPECT_EQ(loaded.slabLeftPx, 6);
+    EXPECT_EQ(loaded.slabBottomPx, 0);
+    EXPECT_EQ(loaded.slabRightPx, 33);
 
-    WriteAppearance(R"("slabThicknessPx": 500, "tintOpacity": 0.45)");
-    te::LoadResult result = Load();
-    EXPECT_EQ(result.settings.slabThicknessPx, te::kSlabMaxPx);
+    WriteAppearance(R"("slabTopPx": 500, "slabLeftPx": "thick", "tintOpacity": 0.45)");
+    const te::LoadResult result = Load();
+    EXPECT_EQ(result.settings.slabTopPx, te::kSlabMaxPx);
+    EXPECT_EQ(result.settings.slabLeftPx, te::kSlabDefaultPx) << "a non-number keeps the default";
+    EXPECT_EQ(result.settings.slabBottomPx, te::kSlabDefaultPx);
     EXPECT_NEAR(result.settings.tintOpacity, 0.45, 1e-9);
+}
 
-    WriteAppearance(R"("slabThicknessPx": "thick")");
-    EXPECT_EQ(Load().settings.slabThicknessPx, te::kSlabDefaultPx);
+TEST_F(SettingsTest, TheEarlierSingleThicknessSetsEveryEdgeUnlessOneHasItsOwn)
+{
+    WriteAppearance(R"("slabThicknessPx": 8, "slabRightPx": 20)");
+    const te::AppearanceSettings s = Load().settings;
+    EXPECT_EQ(s.slabTopPx, 8);
+    EXPECT_EQ(s.slabLeftPx, 8);
+    EXPECT_EQ(s.slabBottomPx, 8);
+    EXPECT_EQ(s.slabRightPx, 20);
 }
 
 TEST_F(SettingsTest, ResetKeepsSlabThickness)
 {
     te::AppearanceSettings current;
-    current.slabThicknessPx = 30;
+    current.slabTopPx = 30;
+    current.slabRightPx = 4;
     current.slabTop = false;
     current.slabBottom = false;
     current.slabRight = false;
     const te::AppearanceSettings reset = te::SettingsManager::Reset(current);
-    EXPECT_EQ(reset.slabThicknessPx, 30);
+    EXPECT_EQ(reset.slabTopPx, 30);
+    EXPECT_EQ(reset.slabRightPx, 4);
     EXPECT_FALSE(reset.slabTop);
     EXPECT_TRUE(reset.slabLeft);
     EXPECT_FALSE(reset.slabBottom);
@@ -368,20 +386,20 @@ TEST_F(SettingsTest, SlabEdgesRoundTripOnTheirOwn)
     saved.slabTop = false;
     saved.slabBottom = false;
     saved.slabRight = false;
-    saved.slabThicknessPx = 24;
+    saved.slabLeftPx = 24;
     ASSERT_HRESULT_SUCCEEDED(te::SettingsManager(m_dir).Save(saved));
     const te::AppearanceSettings loaded = Load().settings;
     EXPECT_FALSE(loaded.slabTop);
     EXPECT_TRUE(loaded.slabLeft);
     EXPECT_FALSE(loaded.slabBottom);
     EXPECT_FALSE(loaded.slabRight);
-    EXPECT_EQ(loaded.slabThicknessPx, 24);
+    EXPECT_EQ(loaded.slabLeftPx, 24);
 
-    WriteAppearance(R"("slabTop": "yes", "slabLeft": false, "slabThicknessPx": 8)");
+    WriteAppearance(R"("slabTop": "yes", "slabLeft": false, "slabLeftPx": 8)");
     const te::LoadResult result = Load();
     EXPECT_TRUE(result.settings.slabTop) << "a non-boolean falls back to the default";
     EXPECT_FALSE(result.settings.slabLeft);
-    EXPECT_EQ(result.settings.slabThicknessPx, 8);
+    EXPECT_EQ(result.settings.slabLeftPx, 8);
 }
 
 } // namespace

@@ -41,12 +41,33 @@
           "default": 0.0,
           "description": "Opacity of the app-drawn surface layer (theme base color) over the system backdrop, independent of tint. Ignored (but retained) in Solid. Not a DWM material opacity."
         },
-        "slabThicknessPx": {
+        "slabTopPx": {
           "type": "integer",
           "minimum": 0,
           "maximum": 48,
           "default": 12,
-          "description": "Thickness in pixels at 100% scale (scaled with the monitor DPI) of the slab faces drawn along the window's top, left and bottom edges; 0 draws a flat pane. Set from the slab popup; not affected by the appearance popup's Reset."
+          "description": "Thickness in pixels at 100% scale (scaled with the monitor DPI) of the slab face along the window's top edge; 0 draws no face there. Set from the slab popup; not affected by the appearance popup's Reset. Files without it may carry the earlier slabThicknessPx, which sets all four edges."
+        },
+        "slabLeftPx": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 48,
+          "default": 12,
+          "description": "Thickness in pixels at 100% scale (scaled with the monitor DPI) of the slab face along the window's left edge; 0 draws no face there. Set from the slab popup; not affected by the appearance popup's Reset. Files without it may carry the earlier slabThicknessPx, which sets all four edges."
+        },
+        "slabBottomPx": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 48,
+          "default": 12,
+          "description": "Thickness in pixels at 100% scale (scaled with the monitor DPI) of the slab face along the window's bottom edge; 0 draws no face there. Set from the slab popup; not affected by the appearance popup's Reset. Files without it may carry the earlier slabThicknessPx, which sets all four edges."
+        },
+        "slabRightPx": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 48,
+          "default": 12,
+          "description": "Thickness in pixels at 100% scale (scaled with the monitor DPI) of the slab face along the window's right edge; 0 draws no face there. Set from the slab popup; not affected by the appearance popup's Reset. Files without it may carry the earlier slabThicknessPx, which sets all four edges."
         },
         "slabTop": {
           "type": "boolean",
@@ -66,7 +87,7 @@
         "slabRight": {
           "type": "boolean",
           "default": true,
-          "description": "Whether the slab face along the right edge is drawn. With all four faces off the window is a flat pane and slabThicknessPx is kept. Set from the slab popup; not affected by the appearance popup's Reset."
+          "description": "Whether the slab face along the right edge is drawn. With all four faces off the window is a flat pane; each face keeps its thickness. Set from the slab popup; not affected by the appearance popup's Reset."
         },
         "customColors": {
           "type": "array",

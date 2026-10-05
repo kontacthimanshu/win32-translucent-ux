@@ -163,23 +163,37 @@ AppearanceSettings ParseAppearance(const json& appearance, std::vector<std::wstr
     ReadOpacity(appearance, "surfaceOpacity", kSurfaceMin, kSurfaceMax, settings.surfaceOpacity, defaulted,
                 L"surfaceOpacity");
 
-    if (const auto it = appearance.find("slabThicknessPx"); it != appearance.end())
+    // Slab thicknesses: a number is clamped to kSlabMinPx-kSlabMaxPx and rounded; anything
+    // else keeps the default. "slabThicknessPx", the one thickness for every edge that
+    // earlier versions saved, sets all four; an edge's own key wins over it.
+    const auto readThickness = [&](const char* key, const wchar_t* name, int& target) {
+        const auto it = appearance.find(key);
+        if (it == appearance.end())
+        {
+            return;
+        }
+        if (!it->is_number())
+        {
+            defaulted.emplace_back(name);
+            return;
+        }
+        const double raw = it->get<double>();
+        target = static_cast<int>(std::lround(std::clamp(raw, double{kSlabMinPx}, double{kSlabMaxPx})));
+        if (std::fabs(target - raw) > 1e-9)
+        {
+            defaulted.emplace_back(name); // clamped or rounded
+        }
+    };
+    int legacyThickness = -1;
+    readThickness("slabThicknessPx", L"slabThicknessPx", legacyThickness);
+    if (legacyThickness >= 0)
     {
-        if (it->is_number())
-        {
-            const double raw = it->get<double>();
-            settings.slabThicknessPx =
-                static_cast<int>(std::lround(std::clamp(raw, double{kSlabMinPx}, double{kSlabMaxPx})));
-            if (std::fabs(settings.slabThicknessPx - raw) > 1e-9)
-            {
-                defaulted.emplace_back(L"slabThicknessPx"); // clamped or rounded
-            }
-        }
-        else
-        {
-            defaulted.emplace_back(L"slabThicknessPx");
-        }
+        settings.slabTopPx = settings.slabLeftPx = settings.slabBottomPx = settings.slabRightPx = legacyThickness;
     }
+    readThickness("slabTopPx", L"slabTopPx", settings.slabTopPx);
+    readThickness("slabLeftPx", L"slabLeftPx", settings.slabLeftPx);
+    readThickness("slabBottomPx", L"slabBottomPx", settings.slabBottomPx);
+    readThickness("slabRightPx", L"slabRightPx", settings.slabRightPx);
 
     for (const auto& [key, name, target] :
          {std::tuple{"slabTop", L"slabTop", &settings.slabTop}, std::tuple{"slabLeft", L"slabLeft", &settings.slabLeft},
@@ -239,7 +253,10 @@ json ToJson(const AppearanceSettings& s)
         std::holds_alternative<Rgb>(s.tintColor) ? ToHex(std::get<Rgb>(s.tintColor)) : std::string("accent");
     appearance["tintOpacity"] = SnapOpacity(s.tintOpacity, kTintMin, kTintMax);
     appearance["surfaceOpacity"] = SnapOpacity(s.surfaceOpacity, kSurfaceMin, kSurfaceMax);
-    appearance["slabThicknessPx"] = std::clamp(s.slabThicknessPx, kSlabMinPx, kSlabMaxPx);
+    appearance["slabTopPx"] = std::clamp(s.slabTopPx, kSlabMinPx, kSlabMaxPx);
+    appearance["slabLeftPx"] = std::clamp(s.slabLeftPx, kSlabMinPx, kSlabMaxPx);
+    appearance["slabBottomPx"] = std::clamp(s.slabBottomPx, kSlabMinPx, kSlabMaxPx);
+    appearance["slabRightPx"] = std::clamp(s.slabRightPx, kSlabMinPx, kSlabMaxPx);
     appearance["slabTop"] = s.slabTop;
     appearance["slabLeft"] = s.slabLeft;
     appearance["slabBottom"] = s.slabBottom;
@@ -408,7 +425,11 @@ AppearanceSettings SettingsManager::Reset(const AppearanceSettings& current)
 {
     AppearanceSettings reset = Defaults();
     reset.customColors = current.customColors; // Reset keeps the custom palette (R-11)
-    reset.slabThicknessPx = current.slabThicknessPx; // set from its own popup, not the color one
+    // The slab is set from its own popup, not the color one.
+    reset.slabTopPx = current.slabTopPx;
+    reset.slabLeftPx = current.slabLeftPx;
+    reset.slabBottomPx = current.slabBottomPx;
+    reset.slabRightPx = current.slabRightPx;
     reset.slabTop = current.slabTop;
     reset.slabLeft = current.slabLeft;
     reset.slabBottom = current.slabBottom;
