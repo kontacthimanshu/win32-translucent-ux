@@ -327,4 +327,47 @@ TEST_F(SettingsTest, ResetKeepsCustomColors)
     EXPECT_EQ(reset.customColors[4], (te::Rgb{9, 9, 9}));
 }
 
+TEST_F(SettingsTest, SlabThicknessRoundTripsAndClamps)
+{
+    te::AppearanceSettings saved;
+    saved.slabThicknessPx = 20;
+    ASSERT_HRESULT_SUCCEEDED(te::SettingsManager(m_dir).Save(saved));
+    EXPECT_EQ(Load().settings.slabThicknessPx, 20);
+
+    WriteAppearance(R"("slabThicknessPx": 500, "tintOpacity": 0.45)");
+    te::LoadResult result = Load();
+    EXPECT_EQ(result.settings.slabThicknessPx, te::kSlabMaxPx);
+    EXPECT_NEAR(result.settings.tintOpacity, 0.45, 1e-9);
+
+    WriteAppearance(R"("slabThicknessPx": "thick")");
+    EXPECT_EQ(Load().settings.slabThicknessPx, te::kSlabDefaultPx);
+}
+
+TEST_F(SettingsTest, ResetKeepsSlabThickness)
+{
+    te::AppearanceSettings current;
+    current.slabThicknessPx = 30;
+    current.slabEnabled = false;
+    const te::AppearanceSettings reset = te::SettingsManager::Reset(current);
+    EXPECT_EQ(reset.slabThicknessPx, 30);
+    EXPECT_FALSE(reset.slabEnabled);
+}
+
+TEST_F(SettingsTest, SlabEnabledRoundTripsAndKeepsTheThickness)
+{
+    EXPECT_TRUE(te::AppearanceSettings{}.slabEnabled) << "on by default";
+    te::AppearanceSettings saved;
+    saved.slabEnabled = false;
+    saved.slabThicknessPx = 24;
+    ASSERT_HRESULT_SUCCEEDED(te::SettingsManager(m_dir).Save(saved));
+    const te::AppearanceSettings loaded = Load().settings;
+    EXPECT_FALSE(loaded.slabEnabled);
+    EXPECT_EQ(loaded.slabThicknessPx, 24);
+
+    WriteAppearance(R"("slabEnabled": "yes", "slabThicknessPx": 8)");
+    const te::LoadResult result = Load();
+    EXPECT_TRUE(result.settings.slabEnabled) << "a non-boolean falls back to the default";
+    EXPECT_EQ(result.settings.slabThicknessPx, 8);
+}
+
 } // namespace

@@ -68,6 +68,27 @@ class CaptionLayout : public ::testing::TestWithParam<LayoutCase>
 {
 };
 
+TEST(CaptionLayoutSlab, TheTopFaceJoinsTheCaptionAndTheSlabButtonSitsLeftOfThePicker)
+{
+    te::CaptionMetrics m = FakeMetrics(144, false);
+    const te::CaptionLayout flat = te::CaptionHitTester::ComputeLayout(m);
+    m.slabPx = 18;
+    const te::CaptionLayout slab = te::CaptionHitTester::ComputeLayout(m);
+    EXPECT_EQ(slab.captionHeightPx, flat.captionHeightPx + 18);
+    EXPECT_EQ(slab.slabButton.right, slab.picker.left);
+    EXPECT_EQ(slab.slabButton.right - slab.slabButton.left, slab.picker.right - slab.picker.left);
+    EXPECT_EQ(slab.dragRegion.right, slab.slabButton.left);
+    EXPECT_EQ(slab.dragRegion.left, 18);
+    EXPECT_EQ(slab.dragRegion.top, flat.dragRegion.top + 18);
+
+    const SIZE client = m.clientSize;
+    const POINT onButton{(slab.slabButton.left + slab.slabButton.right) / 2,
+                         (slab.slabButton.top + slab.slabButton.bottom) / 2};
+    EXPECT_EQ(te::CaptionHitTester::ClassifyPoint(onButton, client, slab), HTCLIENT);
+    const POINT onTopFace{client.cx / 2, slab.resizeBandPx + 2};
+    EXPECT_EQ(te::CaptionHitTester::ClassifyPoint(onTopFace, client, slab), HTCAPTION);
+}
+
 } // namespace
 
 TEST_P(CaptionLayout, CaptionHeightIsCaptionPlusFramePlusPaddedBorder)

@@ -41,6 +41,18 @@
           "default": 0.0,
           "description": "Opacity of the app-drawn surface layer (theme base color) over the system backdrop, independent of tint. Ignored (but retained) in Solid. Not a DWM material opacity."
         },
+        "slabThicknessPx": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 48,
+          "default": 12,
+          "description": "Thickness in pixels at 100% scale (scaled with the monitor DPI) of the slab faces drawn along the window's top, left and bottom edges; 0 draws a flat pane. Set from the slab popup; not affected by the appearance popup's Reset."
+        },
+        "slabEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the slab faces are drawn; false draws a flat pane and keeps slabThicknessPx. Set from the slab popup; not affected by the appearance popup's Reset."
+        },
         "customColors": {
           "type": "array",
           "minItems": 16,

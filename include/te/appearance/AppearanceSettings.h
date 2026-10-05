@@ -25,7 +25,18 @@ struct AppearanceSettings
         colors.fill(Rgb{0xFF, 0xFF, 0xFF});
         return colors;
     }();
+    // The window drawn as a slab of glass: the thickness of the faces seen along its top,
+    // left and bottom edges, in pixels at 100% scale (scaled with the monitor's DPI like the
+    // rest of the window; kSlabMinPx-kSlabMaxPx; 0 = a flat pane).
+    int slabThicknessPx = 12;
+    // Whether the slab's faces are drawn at all; off draws a flat pane and keeps
+    // slabThicknessPx for when they are turned on again.
+    bool slabEnabled = true;
 };
+
+inline constexpr int kSlabMinPx = 0;
+inline constexpr int kSlabMaxPx = 48;
+inline constexpr int kSlabDefaultPx = 12;
 
 // What the OS and session support right now.
 struct RenderingCapabilities

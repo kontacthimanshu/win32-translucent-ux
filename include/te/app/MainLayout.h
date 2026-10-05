@@ -25,6 +25,17 @@ struct MainLayout
     D2D1_RECT_F navigationPane{}; // left column between toolbar and status bar
     D2D1_RECT_F fileList{};       // right of the pane, between toolbar and status bar
     D2D1_RECT_F statusBar{};      // full width, at the bottom
+    // The window as a slab of glass (AppearanceSettings::slabThicknessPx): its faces run
+    // along the top (inside the caption strip, which is that much taller), the left and the
+    // bottom edges, and the panes below the caption move in by the thickness. slabLeft and
+    // slabBottom are the face strips outside every other region; all zero when slab is 0.
+    float slab = 0.0f;              // thickness in DIPs
+    D2D1_RECT_F slabLeft{};         // left edge, from the caption down to the bottom
+    D2D1_RECT_F slabBottom{};       // bottom edge, right of slabLeft
+    // Where the top face starts: the first visible row (below the off-screen rows of a
+    // maximized window). Not set by Compute: the owner fills it from
+    // CaptionLayout::contentTopPx (use ToDip).
+    float slabTop = 0.0f;
     // The DWM caption buttons, kept at zero alpha by SurfacePainter. Not set by
     // Compute: the owner fills it from CaptionLayout::captionButtons (use
     // ToDip).
@@ -35,7 +46,10 @@ struct MainLayout
     // from the bottom (file list and pane first, then toolbar).
     // The toolbar and status bar grow with the Windows text size (`textScale`, 1 to 2.25;
     // T082), as their text does.
-    static MainLayout Compute(SIZE clientSize, UINT dpi, int captionHeightPx, float textScale = 1.0f);
+    // slabPx (physical pixels) is the slab thickness; captionHeightPx already includes it
+    // (CaptionLayout::captionHeightPx).
+    static MainLayout Compute(SIZE clientSize, UINT dpi, int captionHeightPx, float textScale = 1.0f,
+                              int slabPx = 0);
 
     // Converts a client rectangle in physical pixels at dpi to DIPs.
     static D2D1_RECT_F ToDip(const RECT& px, UINT dpi);

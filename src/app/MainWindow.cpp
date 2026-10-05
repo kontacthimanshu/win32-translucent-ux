@@ -110,7 +110,13 @@ void MainWindow::ApplyUserSettings(const AppearanceSettings& settings)
         m_capabilities.backdropApplyFailed = false; // a new choice gets a fresh attempt
         m_modeOverridden = false;                   // the user chose a mode: save it
     }
+    const bool slabChanged = settings.slabThicknessPx != m_settings.slabThicknessPx ||
+                             settings.slabEnabled != m_settings.slabEnabled;
     m_settings = settings;
+    if (slabChanged && m_hwnd)
+    {
+        UpdateLayout(); // the caption and the panes make room for the slab's faces
+    }
     ApplyAppearance();
 
     // Debounced save: every change restarts the 100 ms timer (R-10).
@@ -286,6 +292,10 @@ LRESULT MainWindow::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam)
     // 0. The click that dismissed the appearance popup (by deactivating it) goes no
     //    further: not to the picker, which would reopen it, nor to anything below (R-10).
     if ((msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP) && m_picker && m_picker->ShouldSwallowClick(msg))
+    {
+        return 0;
+    }
+    if ((msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP) && m_slabPopup && m_slabPopup->ShouldSwallowClick(msg))
     {
         return 0;
     }
@@ -595,6 +605,14 @@ void MainWindow::OnCreate()
         }
     });
     m_titleBar.SetPickerCallback([this] { TogglePicker(); });
+    m_slabPopup = std::make_unique<SlabPopup>(m_options.instance, m_options.registerModelessDialog);
+    m_slabPopup->SetChangedCallback([this](bool enabled, int thicknessPx) {
+        AppearanceSettings settings = m_settings;
+        settings.slabEnabled = enabled;
+        settings.slabThicknessPx = thicknessPx;
+        ApplyUserSettings(settings);
+    });
+    m_titleBar.SetSlabCallback([this] { ToggleSlabPopup(); });
 
     m_themes.SetChangedCallback([this] { RefreshAppearance(false); });
     if (!m_themes.Subscribe(m_hwnd))
@@ -706,6 +724,25 @@ void MainWindow::TogglePicker()
     }
     m_picker->SetCapabilities(m_capabilities);
     m_picker->Show(m_hwnd, m_titleBar.PickerScreenRect(m_hwnd), m_settings, m_effective);
+}
+
+void MainWindow::ToggleSlabPopup()
+{
+    if (!m_slabPopup)
+    {
+        return;
+    }
+    if (m_slabPopup->IsOpen())
+    {
+        m_slabPopup->Hide();
+        return;
+    }
+    if (m_picker)
+    {
+        m_picker->Hide(); // one title-bar popup at a time
+    }
+    m_slabPopup->Show(m_hwnd, m_titleBar.SlabScreenRect(m_hwnd), m_settings.slabEnabled,
+                      m_settings.slabThicknessPx);
 }
 
 void MainWindow::RefreshAppearance(bool reprobe)
@@ -874,17 +911,24 @@ void MainWindow::OnDpiChanged(UINT dpi, const RECT& suggested)
     {
         m_picker->Reposition(m_titleBar.PickerScreenRect(m_hwnd));
     }
+    if (m_slabPopup && m_slabPopup->IsOpen())
+    {
+        m_slabPopup->Reposition(m_titleBar.SlabScreenRect(m_hwnd));
+    }
     UpdateAutomationState();
 }
 
 void MainWindow::UpdateLayout()
 {
+    m_hitTester.SetSlabPx(m_settings.slabEnabled ? m_settings.slabThicknessPx : 0);
     m_titleBar.UpdateLayout(m_hwnd);
     RECT client{};
     GetClientRect(m_hwnd, &client);
-    m_layout = MainLayout::Compute(SIZE{client.right, client.bottom}, m_dpi.Dpi(),
-                                   m_titleBar.Layout().captionHeightPx, m_text ? m_text->TextScale() : 1.0f);
-    m_layout.captionButtons = MainLayout::ToDip(m_titleBar.Layout().captionButtons, m_dpi.Dpi());
+    const CaptionLayout& caption = m_titleBar.Layout();
+    m_layout = MainLayout::Compute(SIZE{client.right, client.bottom}, m_dpi.Dpi(), caption.captionHeightPx,
+                                   m_text ? m_text->TextScale() : 1.0f, caption.slabPx);
+    m_layout.captionButtons = MainLayout::ToDip(caption.captionButtons, m_dpi.Dpi());
+    m_layout.slabTop = MainLayout::ToDip(RECT{0, caption.contentTopPx, 0, 0}, m_dpi.Dpi()).top;
     m_statusBar.SetBounds(m_layout.statusBar);
 
     // The toolbar row: navigation buttons, the address bar, then the filter box at the right
@@ -945,6 +989,7 @@ void MainWindow::Render()
         SurfacePainter::PaintTextScrim(dc, m_layout.statusBar, m_effective);
         m_statusBar.Render(dc, m_effective);
         SurfacePainter::PaintDepth(dc, m_layout, m_effective);
+        SurfacePainter::PaintSlab(dc, dc->GetSize(), m_layout, m_effective);
         SurfacePainter::PaintFrameBevel(dc, dc->GetSize(), m_layout.captionButtons, IsZoomed(m_hwnd) != FALSE,
                                         m_effective);
         m_addressBar.RenderOverlay(dc, m_effective); // the inline error, over the list
@@ -1055,6 +1100,7 @@ void MainWindow::OnDestroy()
     m_statusBar.SetMessageCallback(nullptr);
     SaveNow();        // flush a change made less than kSaveDelayMs ago, before any wait
     m_picker.reset(); // the popup is owned by this window: destroy it first
+    m_slabPopup.reset();
 
     // 1. No new work: the enumeration is cancelled, queued icon requests are dropped.
     CancelBackgroundWork();

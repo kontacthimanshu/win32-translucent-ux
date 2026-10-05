@@ -6,6 +6,7 @@
 #include <wil/result_macros.h>
 
 #include <algorithm>
+#include <initializer_list>
 
 namespace te::SurfacePainter
 {
@@ -25,14 +26,37 @@ bool IsEmpty(const D2D1_RECT_F& r)
 
 void FillRegions(ID2D1DeviceContext* dc, const MainLayout& layout, ID2D1Brush* brush)
 {
-    for (const D2D1_RECT_F& region :
-         {layout.caption, layout.toolbar, layout.navigationPane, layout.fileList, layout.statusBar})
+    for (const D2D1_RECT_F& region : {layout.caption, layout.toolbar, layout.navigationPane, layout.fileList,
+                                      layout.statusBar, layout.slabLeft, layout.slabBottom})
     {
         if (!IsEmpty(region))
         {
             dc->FillRectangle(region, brush);
         }
     }
+}
+
+// A closed polygon as a path geometry; nullptr on failure.
+wil::com_ptr<ID2D1PathGeometry> Polygon(ID2D1Factory* factory, std::initializer_list<D2D1_POINT_2F> points)
+{
+    wil::com_ptr<ID2D1PathGeometry> path;
+    wil::com_ptr<ID2D1GeometrySink> sink;
+    if (FAILED_LOG(factory->CreatePathGeometry(path.put())) || FAILED_LOG(path->Open(sink.put())))
+    {
+        return nullptr;
+    }
+    auto it = points.begin();
+    sink->BeginFigure(*it, D2D1_FIGURE_BEGIN_FILLED);
+    for (++it; it != points.end(); ++it)
+    {
+        sink->AddLine(*it);
+    }
+    sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+    if (FAILED_LOG(sink->Close()))
+    {
+        return nullptr;
+    }
+    return path;
 }
 
 } // namespace
@@ -257,6 +281,104 @@ void PaintFrameBevel(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const D2D1_RECT
         dc->DrawRoundedRectangle(
             D2D1::RoundedRect(r, std::max(0.0f, radius - 0.5f), std::max(0.0f, radius - 0.5f)), edge.get(),
             1.0f);
+    }
+    dc->PopLayer();
+}
+
+void PaintSlab(ID2D1DeviceContext* dc, D2D1_SIZE_F client, const MainLayout& layout,
+               const EffectiveAppearance& effective)
+{
+    const float t = layout.slab;
+    const float top = layout.slabTop;
+    if (t <= 0.0f || effective.reason == FallbackReason::HighContrast || client.width <= t ||
+        client.height <= top + 2.0f * t)
+    {
+        return;
+    }
+    // Light from the top left, as for the frame bevel: the top face catches it, the left one
+    // half of it, the bottom one is in shade. Over a dark base light needs less weight to
+    // show and shade more.
+    const bool dark = Contrast::RelativeLuminance(effective.base) < 0.5;
+    const D2D1_COLOR_F topLight = D2D1::ColorF(1.0f, 1.0f, 1.0f, dark ? 0.16f : 0.50f);
+    const D2D1_COLOR_F sideLight = dark ? D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.07f) : D2D1::ColorF(0, 0.05f);
+    const D2D1_COLOR_F bottomShade = D2D1::ColorF(0, dark ? 0.40f : 0.20f);
+    const D2D1_COLOR_F edgeLight = D2D1::ColorF(1.0f, 1.0f, 1.0f, dark ? 0.30f : 0.85f);
+    const D2D1_COLOR_F edgeShade = D2D1::ColorF(0, dark ? 0.60f : 0.30f);
+
+    wil::com_ptr<ID2D1Factory> factory;
+    dc->GetFactory(factory.put());
+
+    // Back outline (the client edges) and front face; the faces join them, mitred at the
+    // corners. The right side has no face: the front face runs to that edge.
+    const float w = client.width;
+    const float h = client.height;
+    const D2D1_POINT_2F backTopLeft = D2D1::Point2F(0.0f, top);
+    const D2D1_POINT_2F backTopRight = D2D1::Point2F(w, top);
+    const D2D1_POINT_2F backBottomLeft = D2D1::Point2F(0.0f, h);
+    const D2D1_POINT_2F backBottomRight = D2D1::Point2F(w, h);
+    const D2D1_POINT_2F frontTopLeft = D2D1::Point2F(t, top + t);
+    const D2D1_POINT_2F frontTopRight = D2D1::Point2F(w, top + t);
+    const D2D1_POINT_2F frontBottomLeft = D2D1::Point2F(t, h - t);
+    const D2D1_POINT_2F frontBottomRight = D2D1::Point2F(w, h - t);
+
+    // Each face: a gradient across its thickness, full strength at the front edge and
+    // fading toward the back, so it reads as a surface turning away.
+    const auto face = [&](std::initializer_list<D2D1_POINT_2F> points, D2D1_COLOR_F color, D2D1_POINT_2F back,
+                          D2D1_POINT_2F front) {
+        const auto geometry = Polygon(factory.get(), points);
+        D2D1_COLOR_F faded = color;
+        faded.a *= 0.55f;
+        const D2D1_GRADIENT_STOP stops[] = {{0.0f, faded}, {1.0f, color}};
+        wil::com_ptr<ID2D1GradientStopCollection> collection;
+        wil::com_ptr<ID2D1LinearGradientBrush> brush;
+        if (geometry && SUCCEEDED_LOG(dc->CreateGradientStopCollection(stops, 2, collection.put())) &&
+            SUCCEEDED_LOG(dc->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties(back, front),
+                                                        collection.get(), brush.put())))
+        {
+            dc->FillGeometry(geometry.get(), brush.get());
+        }
+    };
+
+    // Everything except the caption buttons, which the DWM draws.
+    const D2D1_RECT_F whole = D2D1::RectF(0.0f, 0.0f, w, h);
+    wil::com_ptr<ID2D1RectangleGeometry> all;
+    wil::com_ptr<ID2D1RectangleGeometry> buttons;
+    wil::com_ptr<ID2D1PathGeometry> mask;
+    wil::com_ptr<ID2D1GeometrySink> sink;
+    if (FAILED_LOG(factory->CreateRectangleGeometry(whole, all.put())) ||
+        FAILED_LOG(factory->CreateRectangleGeometry(layout.captionButtons, buttons.put())) ||
+        FAILED_LOG(factory->CreatePathGeometry(mask.put())) || FAILED_LOG(mask->Open(sink.put())) ||
+        FAILED_LOG(all->CombineWithGeometry(buttons.get(), D2D1_COMBINE_MODE_EXCLUDE, nullptr, sink.get())) ||
+        FAILED_LOG(sink->Close()))
+    {
+        return;
+    }
+    dc->PushLayer(D2D1::LayerParameters1(whole, mask.get()), nullptr);
+
+    face({backTopLeft, backTopRight, frontTopRight, frontTopLeft}, topLight, D2D1::Point2F(0.0f, top),
+         D2D1::Point2F(0.0f, top + t));
+    face({backTopLeft, frontTopLeft, frontBottomLeft, backBottomLeft}, sideLight, D2D1::Point2F(0.0f, 0.0f),
+         D2D1::Point2F(t, 0.0f));
+    face({backBottomLeft, frontBottomLeft, frontBottomRight, backBottomRight}, bottomShade,
+         D2D1::Point2F(0.0f, h), D2D1::Point2F(0.0f, h - t));
+
+    // The front face's edges: a line of light where it meets the top and left faces, a line
+    // of shade where it meets the bottom one, and a fainter crease along each mitre.
+    wil::com_ptr<ID2D1SolidColorBrush> line;
+    if (SUCCEEDED_LOG(dc->CreateSolidColorBrush(edgeLight, line.put())))
+    {
+        dc->DrawLine(D2D1::Point2F(t, top + t + 0.5f), D2D1::Point2F(w, top + t + 0.5f), line.get(), 1.0f);
+        dc->DrawLine(D2D1::Point2F(t + 0.5f, top + t), D2D1::Point2F(t + 0.5f, h - t), line.get(), 1.0f);
+        line->SetColor(edgeShade);
+        dc->DrawLine(D2D1::Point2F(t, h - t - 0.5f), D2D1::Point2F(w, h - t - 0.5f), line.get(), 1.0f);
+        D2D1_COLOR_F crease = edgeLight;
+        crease.a *= 0.5f;
+        line->SetColor(crease);
+        dc->DrawLine(backTopLeft, frontTopLeft, line.get(), 1.0f);
+        crease = edgeShade;
+        crease.a *= 0.5f;
+        line->SetColor(crease);
+        dc->DrawLine(backBottomLeft, frontBottomLeft, line.get(), 1.0f);
     }
     dc->PopLayer();
 }

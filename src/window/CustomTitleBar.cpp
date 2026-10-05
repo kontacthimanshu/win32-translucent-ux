@@ -13,6 +13,7 @@
 #include <wil/result.h>
 
 #include <algorithm>
+#include <initializer_list>
 #include <utility>
 
 namespace te
@@ -165,13 +166,15 @@ void CustomTitleBar::ApplyMinimumSize(HWND hwnd, MINMAXINFO* info) const
     // caption + toolbar + five rows + status bar high. The window's own borders
     // (window size minus client size) are added on top.
     const LONG buttonsWidth = m_layout.captionButtons.right - m_layout.captionButtons.left;
-    const LONG pickerWidth = m_layout.picker.right - m_layout.picker.left;
+    const LONG pickerWidth = (m_layout.picker.right - m_layout.picker.left) +
+                             (m_layout.slabButton.right - m_layout.slabButton.left) + m_layout.slabPx;
     const LONG gap = m_layout.captionButtons.left - m_layout.picker.right;
     const LONG minClientWidth = std::max<LONG>(buttonsWidth, 0) + std::max<LONG>(pickerWidth, 0) +
                                 std::max<LONG>(gap, 0) + m_dpi.ToPx(kMinTitleWidthDip);
     const LONG minClientHeight =
         m_layout.captionHeightPx +
-        m_dpi.ToPx((kToolbarHeightDip + kRowHeightDip * kMinVisibleRows + kStatusBarHeightDip) * m_textScale);
+        m_dpi.ToPx((kToolbarHeightDip + kRowHeightDip * kMinVisibleRows + kStatusBarHeightDip) * m_textScale) +
+        m_layout.slabPx; // the bottom face (the top one is in captionHeightPx)
 
     RECT window{};
     RECT client{};
@@ -272,64 +275,99 @@ bool CustomTitleBar::InPicker(POINT client) const noexcept
     return PtInRect(&m_layout.picker, client) != FALSE;
 }
 
-// Returns true when the message belonged to the picker (the caller stops there).
+void CustomTitleBar::SetSlabCallback(std::function<void()> onActivate)
+{
+    m_onSlab = std::move(onActivate);
+}
+
+RECT CustomTitleBar::SlabScreenRect(HWND hwnd) const
+{
+    RECT rect = m_layout.slabButton;
+    MapWindowPoints(hwnd, HWND_DESKTOP, reinterpret_cast<POINT*>(&rect), 2);
+    return rect;
+}
+
+// Returns true when the message belonged to the picker or the slab button (the caller
+// stops there).
 bool CustomTitleBar::HandlePickerMouse(HWND hwnd, UINT msg, LPARAM lParam)
 {
     const POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
-    const auto setHot = [&](bool hot) {
-        if (hot != m_pickerHot)
+    if (msg == WM_MOUSEMOVE)
+    {
+        const bool inside = InPicker(point) || PtInRect(&m_layout.slabButton, point) != FALSE;
+        if (inside && !m_trackingLeave)
         {
-            m_pickerHot = hot;
+            TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, hwnd, 0};
+            m_trackingLeave = TrackMouseEvent(&track) != FALSE;
+        }
+    }
+    else if (msg == WM_MOUSELEAVE)
+    {
+        m_trackingLeave = false;
+    }
+    // Both see moves, leaves and capture changes (hover states); a press or release
+    // belongs to at most one of them.
+    const bool picker =
+        HandleButtonMouse(hwnd, msg, point, m_layout.picker, m_pickerHot, m_pickerPressed, m_onPicker);
+    if (picker && (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP))
+    {
+        return true;
+    }
+    const bool slab =
+        HandleButtonMouse(hwnd, msg, point, m_layout.slabButton, m_slabHot, m_slabPressed, m_onSlab);
+    return picker || slab;
+}
+
+bool CustomTitleBar::HandleButtonMouse(HWND hwnd, UINT msg, POINT point, const RECT& rect, bool& hot,
+                                       bool& pressed, const std::function<void()>& onActivate)
+{
+    const bool inside = PtInRect(&rect, point) != FALSE;
+    const auto setHot = [&](bool value) {
+        if (value != hot)
+        {
+            hot = value;
             InvalidateRect(hwnd, nullptr, FALSE);
         }
     };
 
     switch (msg)
     {
-    case WM_MOUSEMOVE: {
-        const bool inside = InPicker(point);
+    case WM_MOUSEMOVE:
         setHot(inside);
-        if (inside && !m_trackingLeave)
-        {
-            TRACKMOUSEEVENT track{sizeof(track), TME_LEAVE, hwnd, 0};
-            m_trackingLeave = TrackMouseEvent(&track) != FALSE;
-        }
-        return inside || m_pickerPressed;
-    }
+        return inside || pressed;
+
     case WM_MOUSELEAVE:
-        m_trackingLeave = false;
         setHot(false);
         return false;
 
     case WM_LBUTTONDOWN:
-        if (!InPicker(point))
+        if (!inside)
         {
             return false;
         }
-        m_pickerPressed = true;
+        pressed = true;
         SetCapture(hwnd);
         InvalidateRect(hwnd, nullptr, FALSE);
         return true;
 
     case WM_LBUTTONUP: {
-        if (!m_pickerPressed)
+        if (!pressed)
         {
             return false;
         }
-        const bool activate = InPicker(point);
-        m_pickerPressed = false;
+        pressed = false;
         ReleaseCapture();
         InvalidateRect(hwnd, nullptr, FALSE);
-        if (activate && m_onPicker)
+        if (inside && onActivate)
         {
-            m_onPicker();
+            onActivate();
         }
         return true;
     }
     case WM_CAPTURECHANGED:
-        if (m_pickerPressed)
+        if (pressed)
         {
-            m_pickerPressed = false; // capture taken away: cancel the click
+            pressed = false; // capture taken away: cancel the click
             InvalidateRect(hwnd, nullptr, FALSE);
         }
         return false;
@@ -381,6 +419,72 @@ void CustomTitleBar::RenderPicker(ID2D1DeviceContext* dc, const EffectiveAppeara
                               4.0f),
             m_textBrush.get(), FocusIndicator::kWidthDip);
     }
+}
+
+void CustomTitleBar::RenderSlabButton(ID2D1DeviceContext* dc, const EffectiveAppearance& effective)
+{
+    const float left = ToDip(m_layout.slabButton.left);
+    const float top = ToDip(m_layout.slabButton.top);
+    const float right = ToDip(m_layout.slabButton.right);
+    const float bottom = ToDip(m_layout.slabButton.bottom);
+    if (right <= left || bottom <= top || !m_textBrush)
+    {
+        return;
+    }
+    const auto color = [](Rgb rgb, float alpha) {
+        return D2D1::ColorF(rgb.r / 255.0f, rgb.g / 255.0f, rgb.b / 255.0f, alpha);
+    };
+    if (m_slabPressed || m_slabHot)
+    {
+        m_textBrush->SetColor(color(effective.text, m_slabPressed ? 0.06f : 0.10f));
+        dc->FillRectangle(D2D1::RectF(left, top, right, bottom), m_textBrush.get());
+    }
+
+    // The glyph: a front face with its top, left and bottom faces, as the window is drawn.
+    wil::com_ptr<ID2D1Factory> factory;
+    dc->GetFactory(factory.put());
+    const float cx = (left + right) / 2.0f;
+    const float cy = (top + bottom) / 2.0f;
+    const float half = kPickerDiameterDip / 2.0f; // the same footprint as the picker's circle
+    const float depth = 3.0f;
+    const D2D1_RECT_F back = D2D1::RectF(cx - half, cy - half + 1.0f, cx + half, cy + half - 1.0f);
+    const D2D1_RECT_F front = D2D1::RectF(back.left + depth, back.top + depth, back.right, back.bottom - depth);
+    const auto fillPolygon = [&](std::initializer_list<D2D1_POINT_2F> points, float alpha) {
+        wil::com_ptr<ID2D1PathGeometry> path;
+        wil::com_ptr<ID2D1GeometrySink> sink;
+        if (FAILED(factory->CreatePathGeometry(path.put())) || FAILED(path->Open(sink.put())))
+        {
+            return;
+        }
+        auto it = points.begin();
+        sink->BeginFigure(*it, D2D1_FIGURE_BEGIN_FILLED);
+        for (++it; it != points.end(); ++it)
+        {
+            sink->AddLine(*it);
+        }
+        sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+        if (SUCCEEDED(sink->Close()))
+        {
+            m_textBrush->SetColor(color(effective.text, alpha));
+            dc->FillGeometry(path.get(), m_textBrush.get());
+        }
+    };
+    const D2D1_POINT_2F bl = D2D1::Point2F(back.left, back.top);
+    const D2D1_POINT_2F br = D2D1::Point2F(back.right, back.top);
+    const D2D1_POINT_2F bbl = D2D1::Point2F(back.left, back.bottom);
+    const D2D1_POINT_2F bbr = D2D1::Point2F(back.right, back.bottom);
+    const D2D1_POINT_2F fl = D2D1::Point2F(front.left, front.top);
+    const D2D1_POINT_2F fr = D2D1::Point2F(front.right, front.top);
+    const D2D1_POINT_2F fbl = D2D1::Point2F(front.left, front.bottom);
+    const D2D1_POINT_2F fbr = D2D1::Point2F(front.right, front.bottom);
+    fillPolygon({bl, br, fr, fl}, 0.30f);    // top face
+    fillPolygon({bl, fl, fbl, bbl}, 0.55f);  // left face
+    fillPolygon({bbl, fbl, fbr, bbr}, 0.80f); // bottom face
+    m_textBrush->SetColor(color(effective.tint, 1.0f));
+    dc->FillRectangle(front, m_textBrush.get());
+    m_textBrush->SetColor(color(effective.text, 0.40f));
+    dc->DrawRectangle(D2D1::RectF(front.left + 0.5f, front.top + 0.5f, front.right - 0.5f, front.bottom - 0.5f),
+                      m_textBrush.get(), 1.0f);
 }
 
 void CustomTitleBar::RenderCaptionButtonHalos(ID2D1DeviceContext* dc, const EffectiveAppearance& effective)
@@ -466,16 +570,18 @@ void CustomTitleBar::Render(ID2D1DeviceContext* dc, IDWriteTextFormat* titleForm
     SurfacePainter::PaintTextScrim(dc, TitleArea(), effective);
 
     // Everything in DIPs: the device context applies the DPI.
-    const float top = ToDip(std::max(m_layout.resizeBandPx, m_layout.contentTopPx));
+    // Below and right of the slab's top and left faces (dragRegion).
+    const float top = ToDip(m_layout.dragRegion.top);
     const float bottom = ToDip(m_layout.captionHeightPx);
     const float regionRight = ToDip(m_layout.dragRegion.right);
     const float middle = (top + bottom) / 2.0f;
+    const float iconLeft = ToDip(m_layout.slabPx) + kIconMarginDip;
 
-    float textLeft = kIconMarginDip;
+    float textLeft = iconLeft;
     if (SUCCEEDED(EnsureIconBitmap(dc)) && m_iconBitmap)
     {
-        const D2D1_RECT_F iconRect = D2D1::RectF(kIconMarginDip, middle - kIconSizeDip / 2.0f,
-                                                 kIconMarginDip + kIconSizeDip, middle + kIconSizeDip / 2.0f);
+        const D2D1_RECT_F iconRect = D2D1::RectF(iconLeft, middle - kIconSizeDip / 2.0f,
+                                                 iconLeft + kIconSizeDip, middle + kIconSizeDip / 2.0f);
         dc->DrawBitmap(m_iconBitmap.get(), iconRect, 1.0f, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC);
         textLeft = iconRect.right + kIconTitleGapDip;
     }
@@ -485,6 +591,7 @@ void CustomTitleBar::Render(ID2D1DeviceContext* dc, IDWriteTextFormat* titleForm
         LOG_IF_FAILED(dc->CreateSolidColorBrush(textColor, m_textBrush.put()));
     }
     RenderPicker(dc, effective);
+    RenderSlabButton(dc, effective);
     RenderCaptionButtonHalos(dc, effective);
 
     const float textRight = regionRight - kIconTitleGapDip;
